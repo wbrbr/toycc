@@ -1,5 +1,5 @@
 all:
-	g++ main.cpp -o comp -g -fsanitize=undefined,address
+	g++ -Wall main.cpp -o comp -g -fsanitize=undefined
 
 run:
 	./comp

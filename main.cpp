@@ -10,7 +10,9 @@ enum TokenType {
     TOK_ADD,
     TOK_SUB,
     TOK_MUL,
-    TOK_DIV
+    TOK_DIV,
+    TOK_LEFT_PAREN,
+    TOK_RIGHT_PAREN,
 };
 
 struct Token {
@@ -19,6 +21,40 @@ struct Token {
         int64_t i64;
     };
 };
+
+void print_token(Token tok)
+{
+    switch(tok.kind) {
+        case TOK_INT:
+            printf("%ld ", tok.i64);
+            break;
+
+        case TOK_ADD:
+            printf("+ ");
+            break;
+
+        case TOK_SUB:
+            printf("- ");
+            break;
+
+        case TOK_MUL:
+            printf("* ");
+            break;
+
+        case TOK_DIV:
+            printf("/ ");
+            break;
+
+        case TOK_LEFT_PAREN:
+            printf("(");
+            break;
+
+        case TOK_RIGHT_PAREN:
+            printf(")");
+            break;
+    }
+}
+
 
 template<typename T>
 struct Iterator {
@@ -93,6 +129,16 @@ std::vector<Token> tokenize(const char* input)
             Token tok;
             tok.kind = TOK_DIV;
             tokens.push_back(tok);
+        } else if (c == '(') {
+            iter.next();
+            Token tok;
+            tok.kind = TOK_LEFT_PAREN;
+            tokens.push_back(tok);
+        } else if (c == ')') {
+            iter.next();
+            Token tok;
+            tok.kind = TOK_RIGHT_PAREN;
+            tokens.push_back(tok);
         } else {
             fprintf(stderr, "Unexpected token: %c\n", c);
             exit(1);
@@ -157,10 +203,10 @@ struct TokenIterator {
     {
         if (index < size && tokens[index].kind == kind) {
             index++;
+        } else {
+            fprintf(stderr, "Unexpected token\n");
+            exit(1);
         }
-
-        fprintf(stderr, "Unexpected token\n");
-        exit(1);
     }
 
     int64_t expect_int()
@@ -178,21 +224,33 @@ struct TokenIterator {
     bool has_next() {
         return index < size;
     }
+
+    Token peek() {
+        return tokens[index];
+    }
 };
 
+ASTNode expr(TokenIterator& iter);
+
+// primary = '(' expr ')' | int
 ASTNode primary(TokenIterator& iter)
 {
     ASTNode node;
-    int64_t v = iter.expect_int();
-    node.i64 = v;
-    node.children = nullptr;
-    node.num_children = 0;
-    node.kind = NODE_INT;
+
+    if (iter.consume(TOK_LEFT_PAREN)) {
+        node = expr(iter);
+        iter.expect(TOK_RIGHT_PAREN);
+    } else {
+        node.i64 = iter.expect_int();
+        node.children = nullptr;
+        node.num_children = 0;
+        node.kind = NODE_INT;
+    }
 
     return node;
 }
 
-// mul_div = primary ( (* | /) primary)*
+// mul_div = primary ( ('*' | '/') primary)*
 ASTNode mul_div(TokenIterator& iter)
 {
     ASTNode node = primary(iter);
@@ -213,7 +271,7 @@ ASTNode mul_div(TokenIterator& iter)
 }
 
 // expr = mul_div ( (+|-) mul_div)*
-ASTNode build_ast(TokenIterator& iter)
+ASTNode expr(TokenIterator& iter)
 {
     ASTNode node = mul_div(iter);
 
@@ -225,8 +283,7 @@ ASTNode build_ast(TokenIterator& iter)
             ASTNode parent = new_binary(NODE_SUB, node, mul_div(iter));
             node = parent;
         } else {
-            fprintf(stderr, "Expected +,-\n");
-            exit(1);
+            break;
         }
     }
 
@@ -325,13 +382,15 @@ void codegen(ASTNode root, FILE* fp)
 
 int main(int argc, char** argv)
 {
-    std::vector<Token> tokens = tokenize("3 + 2*5 + 10/3");
-    /* for (Token tok : tokens) {
-        printf("%ld\n", tok.i64);
-    } */
+    std::vector<Token> tokens = tokenize("(3 + 2)*5 + 10/3");
+    for (Token tok : tokens) {
+        print_token(tok);
+    }
+    printf("\n");
+    fflush(stdout);
 
     TokenIterator tok_iter(tokens.data(), tokens.size());
-    ASTNode ast = build_ast(tok_iter);
+    ASTNode ast = expr(tok_iter);
 
     print_ast(&ast, 0);
 
