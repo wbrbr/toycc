@@ -382,7 +382,10 @@ void codegen(ASTNode root, FILE* fp)
 
 int main(int argc, char** argv)
 {
-    std::vector<Token> tokens = tokenize("(3 + 2)*5 + 10/3");
+    if (argc != 2) {
+        fprintf(stderr, "Usage: %s <expr>\n", argv[0]);
+    }
+    std::vector<Token> tokens = tokenize(argv[1]);
     for (Token tok : tokens) {
         print_token(tok);
     }

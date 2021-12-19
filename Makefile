@@ -1,7 +1,6 @@
 all:
-	g++ -Wall main.cpp -o comp -g -fsanitize=undefined
+	g++ -Wall -Wextra main.cpp -o comp -g -fsanitize=undefined
 
-run:
-	./comp
+asm:
 	nasm -felf64 out.asm
 	ld -o out out.o
