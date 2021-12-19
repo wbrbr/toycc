@@ -227,6 +227,51 @@ void print_ast(ASTNode* node, unsigned int indent)
     }
 }
 
+const char* asm_preamble =
+    "global _start\n"
+    "section .text\n"
+    "_start:\n";
+
+const char* asm_conclusion =
+   "mov rax,60\n"
+   "pop rdi\n"
+   "syscall\n";
+
+void codegen_node(ASTNode node, FILE* fp)
+{
+    for (size_t i = 0; i < node.num_children; i++)
+    {
+        codegen_node(node.children[i], fp);
+    }
+
+    switch(node.kind) {
+        case NODE_INT:
+            fprintf(fp, "push %ld\n", node.i64);
+            break;
+
+        case NODE_ADD:
+            fprintf(fp, "pop rbx\npop rax\nadd rax, rbx\npush rax\n");
+            break;
+
+        case NODE_SUB:
+            fprintf(fp, "pop rbx\npop rax\nsub rax, rbx\npush rax\n");
+            break;
+
+        default:
+            fprintf(stderr, "Unknown node kind\n");
+            exit(1);
+    }
+}
+
+void codegen(ASTNode root, FILE* fp)
+{
+    fprintf(fp, "%s", asm_preamble);
+
+    codegen_node(root, fp);
+
+    fprintf(fp, "%s", asm_conclusion);
+}
+
 int main(int argc, char** argv)
 {
     std::vector<Token> tokens = tokenize("5 + 12 - 010");
@@ -238,6 +283,14 @@ int main(int argc, char** argv)
     ASTNode ast = build_ast(tok_iter);
 
     print_ast(&ast, 0);
+
+    FILE* fp = fopen("out.asm", "w");
+    if (!fp) {
+        fprintf(stderr, "Failed to open out.asm");
+        exit(1);
+    }
+
+    codegen(ast, fp);
 
     return 0;
 }
