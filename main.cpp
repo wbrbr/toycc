@@ -8,7 +8,9 @@
 enum TokenType {
     TOK_INT,
     TOK_ADD,
-    TOK_SUB
+    TOK_SUB,
+    TOK_MUL,
+    TOK_DIV
 };
 
 struct Token {
@@ -81,6 +83,16 @@ std::vector<Token> tokenize(const char* input)
             Token tok;
             tok.kind = TOK_SUB;
             tokens.push_back(tok);
+        } else if (c == '*') {
+            iter.next();
+            Token tok;
+            tok.kind = TOK_MUL;
+            tokens.push_back(tok);
+        } else if (c == '/') {
+            iter.next();
+            Token tok;
+            tok.kind = TOK_DIV;
+            tokens.push_back(tok);
         } else {
             fprintf(stderr, "Unexpected token: %c\n", c);
             exit(1);
@@ -93,6 +105,8 @@ std::vector<Token> tokenize(const char* input)
 enum NodeKind {
     NODE_ADD,
     NODE_SUB,
+    NODE_MUL,
+    NODE_DIV,
     NODE_INT
 };
 
@@ -178,16 +192,37 @@ ASTNode primary(TokenIterator& iter)
     return node;
 }
 
-ASTNode build_ast(TokenIterator& iter)
+// mul_div = primary ( (* | /) primary)*
+ASTNode mul_div(TokenIterator& iter)
 {
     ASTNode node = primary(iter);
 
     while (iter.has_next()) {
+        if (iter.consume(TOK_MUL)) {
+            ASTNode parent = new_binary(NODE_MUL, node, primary(iter));
+            node = parent;
+        } else if (iter.consume(TOK_DIV)) {
+            ASTNode parent = new_binary(NODE_DIV, node, primary(iter));
+            node = parent;
+        } else {
+            break;
+        }
+    }
+
+    return node;
+}
+
+// expr = mul_div ( (+|-) mul_div)*
+ASTNode build_ast(TokenIterator& iter)
+{
+    ASTNode node = mul_div(iter);
+
+    while (iter.has_next()) {
         if (iter.consume(TOK_ADD)) {
-            ASTNode parent = new_binary(NODE_ADD, node, primary(iter));
+            ASTNode parent = new_binary(NODE_ADD, node, mul_div(iter));
             node = parent;
         } else if (iter.consume(TOK_SUB)) {
-            ASTNode parent = new_binary(NODE_SUB, node, primary(iter));
+            ASTNode parent = new_binary(NODE_SUB, node, mul_div(iter));
             node = parent;
         } else {
             fprintf(stderr, "Expected +,-\n");
@@ -215,6 +250,14 @@ void print_ast(ASTNode* node, unsigned int indent)
 
         case NODE_INT:
             printf("%ld\n", node->i64);
+            break;
+
+        case NODE_MUL:
+            printf("MUL\n");
+            break;
+            
+        case NODE_DIV:
+            printf("DIV\n");
             break;
 
         default:
@@ -257,6 +300,14 @@ void codegen_node(ASTNode node, FILE* fp)
             fprintf(fp, "pop rbx\npop rax\nsub rax, rbx\npush rax\n");
             break;
 
+        case NODE_MUL:
+            fprintf(fp, "pop rbx\npop rax\nimul rax, rbx\npush rax\n");
+            break;
+            
+        case NODE_DIV:
+            fprintf(fp, "pop rbx\npop rax\nidiv rbx\npush rax\n");
+            break;
+
         default:
             fprintf(stderr, "Unknown node kind\n");
             exit(1);
@@ -274,7 +325,7 @@ void codegen(ASTNode root, FILE* fp)
 
 int main(int argc, char** argv)
 {
-    std::vector<Token> tokens = tokenize("5 + 12 - 010");
+    std::vector<Token> tokens = tokenize("3 + 2*5 + 10/3");
     /* for (Token tok : tokens) {
         printf("%ld\n", tok.i64);
     } */
