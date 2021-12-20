@@ -4,6 +4,9 @@
 #include <ctype.h>
 #include <vector>
 #include <string.h>
+extern "C" {
+#include "dynarray.h"
+}
 
 enum TokenType {
     TOK_INT,
@@ -13,6 +16,7 @@ enum TokenType {
     TOK_DIV,
     TOK_LEFT_PAREN,
     TOK_RIGHT_PAREN,
+    TOK_SEMICOLON,
 };
 
 struct Token {
@@ -52,17 +56,24 @@ void print_token(Token tok)
         case TOK_RIGHT_PAREN:
             printf(")");
             break;
+
+        case TOK_SEMICOLON:
+            printf(";");
+            break;
+
+        default:
+            fprintf(stderr, "Unknown token\n");
+            exit(1);
     }
 }
 
 
-template<typename T>
-struct Iterator {
-    const T* data;
+struct CharIterator {
+    const char* data;
     size_t index;
     size_t size;
 
-    Iterator(const T* data, size_t size) {
+    CharIterator(const char* data, size_t size) {
         this->data = data;
         index = 0;
         this->size = size;
@@ -83,8 +94,6 @@ struct Iterator {
     }
 };
 
-using CharIterator = Iterator<char>;
-
 Token match_num(CharIterator& iter) {
     int64_t num = 0;
     while (isdigit(iter.peek())) {
@@ -98,57 +107,62 @@ Token match_num(CharIterator& iter) {
     return tok;
 }
 
-std::vector<Token> tokenize(const char* input)
+void tokenize(struct dynarray* tokens, const char* input)
 {
     CharIterator iter(input, strlen(input));
-    std::vector<Token> tokens;
 
     while (iter.has_next()) {
         char c = iter.peek();
         if (isspace(c)) {
             iter.next();
         } else if (isdigit(c)) {
-            tokens.push_back(match_num(iter));
+            Token tok;
+            tok = match_num(iter);
+            dynarray_push(tokens, &tok);
         } else if (c == '+') {
             iter.next();
             Token tok;
             tok.kind = TOK_ADD;
-            tokens.push_back(tok);
+            dynarray_push(tokens, &tok);
         } else if (c == '-') {
             iter.next();
             Token tok;
             tok.kind = TOK_SUB;
-            tokens.push_back(tok);
+            dynarray_push(tokens, &tok);
         } else if (c == '*') {
             iter.next();
             Token tok;
             tok.kind = TOK_MUL;
-            tokens.push_back(tok);
+            dynarray_push(tokens, &tok);
         } else if (c == '/') {
             iter.next();
             Token tok;
             tok.kind = TOK_DIV;
-            tokens.push_back(tok);
+            dynarray_push(tokens, &tok);
         } else if (c == '(') {
             iter.next();
             Token tok;
             tok.kind = TOK_LEFT_PAREN;
-            tokens.push_back(tok);
+            dynarray_push(tokens, &tok);
         } else if (c == ')') {
             iter.next();
             Token tok;
             tok.kind = TOK_RIGHT_PAREN;
-            tokens.push_back(tok);
+            dynarray_push(tokens, &tok);
+        } else if (c == ';') {
+            iter.next();
+            Token tok;
+            tok.kind = TOK_SEMICOLON;
+            dynarray_push(tokens, &tok);
         } else {
             fprintf(stderr, "Unexpected token: %c\n", c);
             exit(1);
         }
     }
-
-    return tokens;
 }
 
 enum NodeKind {
+    NODE_PROGRAM,
     NODE_ADD,
     NODE_SUB,
     NODE_MUL,
@@ -157,9 +171,8 @@ enum NodeKind {
 };
 
 struct ASTNode {
-    ASTNode* children;
-    size_t num_children;
     NodeKind kind;
+    struct dynarray children;
 
     union {
         int64_t i64;
@@ -169,10 +182,9 @@ struct ASTNode {
 ASTNode new_binary(NodeKind kind, ASTNode left, ASTNode right)
 {
     ASTNode node;
-    node.num_children = 2;
-    node.children = (ASTNode*)malloc(2*sizeof(ASTNode));
-    node.children[0] = left;
-    node.children[1] = right;
+    dynarray_init_with_capacity(&node.children, sizeof(ASTNode), 2);
+    dynarray_push(&node.children, &left);
+    dynarray_push(&node.children, &right);
     node.kind = kind;
 
     return node;
@@ -242,8 +254,7 @@ ASTNode primary(TokenIterator& iter)
         iter.expect(TOK_RIGHT_PAREN);
     } else {
         node.i64 = iter.expect_int();
-        node.children = nullptr;
-        node.num_children = 0;
+        dynarray_init(&node.children, sizeof(ASTNode));
         node.kind = NODE_INT;
     }
 
@@ -290,6 +301,28 @@ ASTNode expr(TokenIterator& iter)
     return node;
 }
 
+// statement = expr ';'
+ASTNode statement(TokenIterator& iter)
+{
+    ASTNode node = expr(iter);
+    iter.expect(TOK_SEMICOLON);
+    return node;
+}
+
+// program = statement*
+ASTNode program(TokenIterator& iter)
+{
+    ASTNode program;
+    program.kind = NODE_PROGRAM;
+    dynarray_init(&program.children, sizeof(ASTNode));
+    while(iter.has_next()) {
+        ASTNode node = statement(iter);
+        dynarray_push(&program.children, &node);
+    }
+
+    return program;
+}
+
 void print_ast(ASTNode* node, unsigned int indent)
 {
     for (unsigned int i = 0; i < indent; i++) {
@@ -317,13 +350,18 @@ void print_ast(ASTNode* node, unsigned int indent)
             printf("DIV\n");
             break;
 
+        case NODE_PROGRAM:
+            printf("PROGRAM\n");
+            break;
+
         default:
             fprintf(stderr, "Unknown node kind\n");
             exit(1);
     }
 
-    for (size_t i = 0; i < node->num_children; i++) {
-        print_ast(&node->children[i], indent+4);
+    for (size_t i = 0; i < dynarray_length(&node->children); i++) {
+        ASTNode* child = (ASTNode*)dynarray_get(&node->children, i);
+        print_ast(child, indent+4);
     }
 }
 
@@ -339,9 +377,10 @@ const char* asm_conclusion =
 
 void codegen_node(ASTNode node, FILE* fp)
 {
-    for (size_t i = 0; i < node.num_children; i++)
+    for (size_t i = 0; i < dynarray_length(&node.children); i++)
     {
-        codegen_node(node.children[i], fp);
+        ASTNode* child = (ASTNode*)dynarray_get(&node.children, i);
+        codegen_node(*child, fp);
     }
 
     switch(node.kind) {
@@ -371,29 +410,54 @@ void codegen_node(ASTNode node, FILE* fp)
     }
 }
 
-void codegen(ASTNode root, FILE* fp)
+void codegen(ASTNode program, FILE* fp)
 {
     fprintf(fp, "%s", asm_preamble);
 
-    codegen_node(root, fp);
+    for (size_t i = 0; i < dynarray_length(&program.children); i++)
+    {
+        ASTNode* child = (ASTNode*)dynarray_get(&program.children, i);
+        codegen_node(*child, fp);
+    }
 
     fprintf(fp, "%s", asm_conclusion);
 }
 
+void print_int(void* ptr)
+{
+    printf("%d\n", *(int*)ptr);
+}
+
 int main(int argc, char** argv)
 {
+    int f = 4;
+    struct dynarray test;
+    dynarray_init(&test, sizeof(int));
+    dynarray_push(&test, &f);
+    f = -5;
+    dynarray_push(&test, &f);
+    dynarray_map(&test, print_int);
+
+    dynarray_destroy(&test);
+
     if (argc != 2) {
         fprintf(stderr, "Usage: %s <expr>\n", argv[0]);
+        exit(1);
     }
-    std::vector<Token> tokens = tokenize(argv[1]);
-    for (Token tok : tokens) {
-        print_token(tok);
+    struct dynarray tokens;
+    dynarray_init(&tokens, sizeof(Token));
+    tokenize(&tokens, argv[1]);
+
+    for (size_t i = 0; i < dynarray_length(&tokens); i++) {
+        Token* tok = (Token*)dynarray_get(&tokens, i);
+        print_token(*tok);
     }
+
     printf("\n");
     fflush(stdout);
 
-    TokenIterator tok_iter(tokens.data(), tokens.size());
-    ASTNode ast = expr(tok_iter);
+    TokenIterator tok_iter((Token*)tokens.data, dynarray_length(&tokens));
+    ASTNode ast = program(tok_iter);
 
     print_ast(&ast, 0);
 
@@ -404,6 +468,9 @@ int main(int argc, char** argv)
     }
 
     codegen(ast, fp);
+    fclose(fp);
+
+    dynarray_destroy(&tokens);
 
     return 0;
 }
