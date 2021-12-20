@@ -16,7 +16,19 @@ void hashmap_init_ex(struct hashmap* map, size_t element_size, float load_factor
     map->entries = calloc(capacity, sizeof(struct hashmap_entry));
 }
 
-void hashmap_set(struct hashmap* map, char* key, void* val)
+void hashmap_destroy(struct hashmap* map)
+{
+    for (size_t i = 0 ; i < map->capacity; i++) {
+        struct hashmap_entry* entry = &map->entries[i];
+        if (entry->key != NULL) {
+            free(entry->key);
+            free(entry->value);
+        }
+    }
+    free(map->entries);
+}
+
+void hashmap_set(struct hashmap* map, const char* key, const void* val)
 {
     size_t len_key = strlen(key);
     uint64_t hash = XXH3_64bits(key, len_key);
@@ -51,6 +63,7 @@ bool hashmap_get(const struct hashmap* map, const char* key, void* val)
 
         if (strcmp(key, entry->key) == 0) {
             memcpy(val, entry->value, map->element_size);
+            return true;
         }
     }
 
