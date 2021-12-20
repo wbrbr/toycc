@@ -17,12 +17,14 @@ enum TokenType {
     TOK_LEFT_PAREN,
     TOK_RIGHT_PAREN,
     TOK_SEMICOLON,
+    TOK_IDENT,
 };
 
 struct Token {
     TokenType kind;
     union {
         int64_t i64;
+        char* ident;
     };
 };
 
@@ -61,6 +63,10 @@ void print_token(Token tok)
             printf(";");
             break;
 
+        case TOK_IDENT:
+            printf("%s", tok.ident);
+            break;
+
         default:
             fprintf(stderr, "Unknown token\n");
             exit(1);
@@ -92,6 +98,27 @@ struct CharIterator {
     bool has_next() {
         return index < size;
     }
+
+    bool consume(char c) {
+        if (peek() == c) {
+            next();
+            return true;
+        } else {
+            return false;
+        }
+    }
+
+    bool consume_pred(int (*pred)(int), char* c) {
+        if (pred(peek())) {
+            char n = next();
+            if (c) {
+                *c = n;
+            }
+            return true;
+        } else {
+            return false;
+        }
+    }
 };
 
 Token match_num(CharIterator& iter) {
@@ -107,6 +134,26 @@ Token match_num(CharIterator& iter) {
     return tok;
 }
 
+Token match_ident(CharIterator& iter)
+{
+    dynarray string;
+    dynarray_init(&string, 1);
+
+    char c;
+    while (iter.consume_pred(isalnum, &c)) {
+        dynarray_push(&string, &c);
+    }
+
+    char null = 0;
+    dynarray_push(&string, &null);
+
+    Token tok;
+    tok.kind = TOK_IDENT;
+    tok.ident = (char*)string.data;
+
+    return tok;
+}
+
 void tokenize(struct dynarray* tokens, const char* input)
 {
     CharIterator iter(input, strlen(input));
@@ -116,41 +163,36 @@ void tokenize(struct dynarray* tokens, const char* input)
         if (isspace(c)) {
             iter.next();
         } else if (isdigit(c)) {
-            Token tok;
-            tok = match_num(iter);
+            Token tok = match_num(iter);
             dynarray_push(tokens, &tok);
-        } else if (c == '+') {
-            iter.next();
+        } else if (isalpha(c)) {
+            Token tok = match_ident(iter);
+            dynarray_push(tokens, &tok);
+        } else if (iter.consume('+')) {
             Token tok;
             tok.kind = TOK_ADD;
             dynarray_push(tokens, &tok);
-        } else if (c == '-') {
-            iter.next();
+        } else if (iter.consume('-')) {
             Token tok;
             tok.kind = TOK_SUB;
             dynarray_push(tokens, &tok);
-        } else if (c == '*') {
-            iter.next();
+        } else if (iter.consume('*')) {
             Token tok;
             tok.kind = TOK_MUL;
             dynarray_push(tokens, &tok);
-        } else if (c == '/') {
-            iter.next();
+        } else if (iter.consume('/')) {
             Token tok;
             tok.kind = TOK_DIV;
             dynarray_push(tokens, &tok);
-        } else if (c == '(') {
-            iter.next();
+        } else if (iter.consume('(')) {
             Token tok;
             tok.kind = TOK_LEFT_PAREN;
             dynarray_push(tokens, &tok);
-        } else if (c == ')') {
-            iter.next();
+        } else if (iter.consume(')')) {
             Token tok;
             tok.kind = TOK_RIGHT_PAREN;
             dynarray_push(tokens, &tok);
-        } else if (c == ';') {
-            iter.next();
+        } else if (iter.consume(';')) {
             Token tok;
             tok.kind = TOK_SEMICOLON;
             dynarray_push(tokens, &tok);
@@ -167,7 +209,8 @@ enum NodeKind {
     NODE_SUB,
     NODE_MUL,
     NODE_DIV,
-    NODE_INT
+    NODE_INT,
+    NODE_RETURN,
 };
 
 struct ASTNode {
@@ -205,6 +248,16 @@ struct TokenIterator {
     bool consume(TokenType kind)
     {
         if (index < size && tokens[index].kind == kind) {
+            index++;
+            return true;
+        }
+        return false;
+    }
+
+    bool consume(TokenType kind, Token* tok)
+    {
+        if (index < size && tokens[index].kind == kind) {
+            *tok = tokens[index];
             index++;
             return true;
         }
@@ -301,10 +354,24 @@ ASTNode expr(TokenIterator& iter)
     return node;
 }
 
-// statement = expr ';'
+// statement = 'return' expr ';' | expr ';'
 ASTNode statement(TokenIterator& iter)
 {
-    ASTNode node = expr(iter);
+    ASTNode node;
+    Token tok;
+    if (iter.consume(TOK_IDENT, &tok)) {
+        if (strcmp(tok.ident, "return") == 0) {
+            dynarray_init(&node.children, sizeof(ASTNode));
+            node.kind = NODE_RETURN;
+
+            ASTNode child = expr(iter);
+            dynarray_push(&node.children, &child);
+        } else {
+            fprintf(stderr, "Unexpected identifier %s\n", tok.ident);
+        }
+    } else {
+        node = expr(iter);
+    }
     iter.expect(TOK_SEMICOLON);
     return node;
 }
@@ -352,6 +419,10 @@ void print_ast(ASTNode* node, unsigned int indent)
 
         case NODE_PROGRAM:
             printf("PROGRAM\n");
+            break;
+
+        case NODE_RETURN:
+            printf("RETURN\n");
             break;
 
         default:
@@ -402,6 +473,10 @@ void codegen_node(ASTNode node, FILE* fp)
             
         case NODE_DIV:
             fprintf(fp, "pop rbx\npop rax\nidiv rbx\npush rax\n");
+            break;
+
+        case NODE_RETURN:
+            fprintf(fp, "%s", asm_conclusion);
             break;
 
         default:
