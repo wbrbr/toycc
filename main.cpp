@@ -7,33 +7,11 @@
 extern "C" {
 #include "dynarray.h"
 #include "hashmap.h"
-#include "util.h"
+#include "toycc.h"
 }
 
-enum TokenType {
-    TOK_ADD,
-    TOK_ASSIGN,
-    TOK_DIV,
-    TOK_IDENT,
-    TOK_INT,
-    TOK_LEFT_CURLY_BRACKET,
-    TOK_LEFT_PAREN,
-    TOK_MUL,
-    TOK_RIGHT_CURLY_BRACKET,
-    TOK_RIGHT_PAREN,
-    TOK_SEMICOLON,
-    TOK_SUB,
-};
 
-struct Token {
-    TokenType kind;
-    union {
-        int64_t i64;
-        char* ident;
-    };
-};
-
-void print_token(Token tok)
+void print_token(struct Token tok)
 {
     switch(tok.kind) {
         case TOK_INT:
@@ -228,31 +206,6 @@ void tokenize(struct dynarray* tokens, const char* input)
     }
 }
 
-enum NodeKind {
-    NODE_ADD,
-    NODE_ASSIGN,
-    NODE_BLOCK,
-    NODE_DIV,
-    NODE_EXPR_STMT,
-    NODE_IF,
-    NODE_INT,
-    NODE_MUL,
-    NODE_PROGRAM,
-    NODE_RETURN,
-    NODE_SUB,
-    NODE_VAR,
-};
-
-struct Variable {
-    const char* ident;
-    size_t stack_loc;
-};
-
-struct Scope {
-    const Scope* parent;
-    struct hashmap variables;
-    size_t next_offset;
-};
 
 void Scope_init(struct Scope* scope, const struct Scope* parent)
 {
@@ -279,16 +232,6 @@ void Scope_append(struct Scope* scope, const char* ident, struct Variable* var)
     scope->next_offset++;
     hashmap_set(&scope->variables, ident, var);
 }
-
-struct ASTNode {
-    NodeKind kind;
-    struct dynarray children;
-
-    union {
-        int64_t i64;
-        Variable var;
-    };
-};
 
 void ASTNode_init(struct ASTNode* node, NodeKind kind)
 {
@@ -621,138 +564,6 @@ void print_ast(ASTNode* node, unsigned int indent)
     }
 }
 
-const char* asm_preamble =
-    "global _start\n"
-    "section .text\n"
-    "_start:\n"
-    "mov rbp, rsp\n";
-
-const char* asm_conclusion =
-   "mov rax,60\n"
-   "pop rdi\n"
-   "syscall\n";
-
-/// Write the address of the lvalue in rax
-void codegen_addr(ASTNode node, FILE* fp)
-{
-    switch(node.kind) {
-        case NODE_VAR:
-            fprintf(fp, "lea rax, [rbp-%lu]\n", node.var.stack_loc);
-            break;
-
-        default:
-            fprintf(stderr, "Unknown lvalue type");
-    }
-}
-
-void codegen_node(ASTNode node, FILE* fp);
-
-void codegen_children(struct dynarray* children, FILE* fp)
-{
-    for (size_t i = 0; i < dynarray_length(children); i++)
-    {
-        ASTNode* child = (ASTNode*)dynarray_get(children, i);
-        codegen_node(*child, fp);
-    }
-}
-
-void codegen_node(ASTNode node, FILE* fp)
-{
-    switch(node.kind) {
-        case NODE_INT:
-            codegen_children(&node.children, fp);
-            fprintf(fp, "push %ld\n", node.i64);
-            break;
-
-        case NODE_ADD:
-            codegen_children(&node.children, fp);
-            fprintf(fp, "pop rbx\npop rax\nadd rax, rbx\npush rax\n");
-            break;
-
-        case NODE_ASSIGN:
-            {
-                ASTNode* rhs = (ASTNode*)dynarray_get(&node.children, 0);
-                codegen_node(*rhs, fp);
-
-                ASTNode* lhs = (ASTNode*)dynarray_get(&node.children, 1);
-                codegen_addr(*lhs, fp);
-
-                // copy from top of the stack to [rax] (address of the local variable)
-                // don't pop because assignment is an expression too
-                fprintf(fp, "mov rbx,[rsp]\nmov [rax],rbx\n");
-                break;
-            }
-
-        case NODE_BLOCK:
-            codegen_children(&node.children, fp);
-            break;
-
-        case NODE_SUB:
-            codegen_children(&node.children, fp);
-            fprintf(fp, "pop rbx\npop rax\nsub rax, rbx\npush rax\n");
-            break;
-
-        case NODE_MUL:
-            codegen_children(&node.children, fp);
-            fprintf(fp, "pop rbx\npop rax\nimul rax, rbx\npush rax\n");
-            break;
-            
-        case NODE_DIV:
-            codegen_children(&node.children, fp);
-            fprintf(fp, "pop rbx\npop rax\nidiv rbx\npush rax\n");
-            break;
-
-        case NODE_EXPR_STMT:
-            codegen_children(&node.children, fp);
-            fprintf(fp, "add rsp, 8\n");
-            break;
-
-        case NODE_IF:
-            {
-                ASTNode* cond = (ASTNode*)dynarray_get(&node.children, 0);
-
-                ASTNode* body = (ASTNode*)dynarray_get(&node.children, 1);
-
-                codegen_node(*cond, fp);
-
-                fprintf(fp, "pop rax\ntest rax, rax\njz _false\n");
-
-                codegen_node(*body, fp);
-
-                fprintf(fp, "_false:\n");
-                break;
-            }
-
-        case NODE_PROGRAM:
-            ASSERT(0);
-            break;
-
-        case NODE_RETURN:
-            codegen_children(&node.children, fp);
-            fprintf(fp, "%s", asm_conclusion);
-            break;
-
-        case NODE_VAR:
-            codegen_children(&node.children, fp);
-            fprintf(fp, "push qword [rbp-%lu]\n", node.var.stack_loc);
-            break;
-    }
-}
-
-void codegen(ASTNode program, FILE* fp)
-{
-    fprintf(fp, "%s", asm_preamble);
-
-    for (size_t i = 0; i < dynarray_length(&program.children); i++)
-    {
-        // TODO: write the code of the statement in an assembly comment
-        fprintf(fp, "; statement %lu\n", i);
-        ASTNode* child = (ASTNode*)dynarray_get(&program.children, i);
-        codegen_node(*child, fp);
-    }
-
-    fprintf(fp, "%s", asm_conclusion);
-}
 
 void print_int(void* ptr)
 {
