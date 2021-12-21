@@ -1,15 +1,15 @@
 CFLAGS = -Wall -Wextra -g -fsanitize=address,undefined
 
-all:
-	gcc -c dynarray.c -o dynarray.o $(CFLAGS)
-	gcc -c hashmap.c -o hashmap.o $(CFLAGS)
-	gcc -c xxhash.c -o xxhash.o $(CFLAGS)
-	gcc -c parser.c -o parser.o $(CFLAGS)
-	gcc -c codegen.c -o codegen.o $(CFLAGS)
-	g++ -c main.cpp -o main.o $(CFLAGS)
-	g++ xxhash.o hashmap.o dynarray.o parser.o codegen.o main.o -o comp $(CFLAGS)
-	gcc -c tests/hashmap_tests.c -o tests/hashmap_tests.o $(CFLAGS)
-	gcc xxhash.o hashmap.o tests/hashmap_tests.o -o tests/hashmap_tests $(CFLAGS)
+all: codegen.o dynarray.o hashmap.o main.o parser.o xxhash.o
+	c++ $^ -o toycc $(CFLAGS)
+	cc -c tests/hashmap_tests.c -o tests/hashmap_tests.o $(CFLAGS)
+	cc xxhash.o hashmap.o tests/hashmap_tests.o -o tests/hashmap_tests $(CFLAGS)
+
+%.o: %.c
+	cc -c $< -o $@ $(CFLAGS)
+
+%.o: %.cpp
+	c++ -c $< -o $@ $(CFLAGS)
 
 asm:
 	nasm -felf64 out.asm
