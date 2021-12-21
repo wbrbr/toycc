@@ -6,18 +6,20 @@
 #include <string.h>
 extern "C" {
 #include "dynarray.h"
+#include "hashmap.h"
 }
 
 enum TokenType {
-    TOK_INT,
     TOK_ADD,
-    TOK_SUB,
-    TOK_MUL,
+    TOK_ASSIGN,
     TOK_DIV,
+    TOK_IDENT,
+    TOK_INT,
     TOK_LEFT_PAREN,
+    TOK_MUL,
     TOK_RIGHT_PAREN,
     TOK_SEMICOLON,
-    TOK_IDENT,
+    TOK_SUB,
 };
 
 struct Token {
@@ -65,6 +67,10 @@ void print_token(Token tok)
 
         case TOK_IDENT:
             printf("%s", tok.ident);
+            break;
+
+        case TOK_ASSIGN:
+            printf("=");
             break;
 
         default:
@@ -196,6 +202,10 @@ void tokenize(struct dynarray* tokens, const char* input)
             Token tok;
             tok.kind = TOK_SEMICOLON;
             dynarray_push(tokens, &tok);
+        } else if (iter.consume('=')) {
+            Token tok;
+            tok.kind = TOK_ASSIGN;
+            dynarray_push(tokens, &tok);
         } else {
             fprintf(stderr, "Unexpected token: %c\n", c);
             exit(1);
@@ -203,15 +213,55 @@ void tokenize(struct dynarray* tokens, const char* input)
     }
 }
 
+// TODO: add expression statement node that just pops the stack
 enum NodeKind {
-    NODE_PROGRAM,
     NODE_ADD,
-    NODE_SUB,
-    NODE_MUL,
+    NODE_ASSIGN,
     NODE_DIV,
     NODE_INT,
+    NODE_MUL,
+    NODE_PROGRAM,
     NODE_RETURN,
+    NODE_SUB,
+    NODE_VAR,
 };
+
+struct Variable {
+    const char* ident;
+    size_t stack_loc;
+};
+
+struct Scope {
+    const Scope* parent;
+    struct hashmap variables;
+    size_t next_offset;
+};
+
+void Scope_init(struct Scope* scope, const struct Scope* parent)
+{
+    scope->parent = parent;
+    hashmap_init(&scope->variables, sizeof(Variable));
+    scope->next_offset = parent ? parent->next_offset : 0;
+}
+
+bool Scope_find(const struct Scope* scope, const char* ident, struct Variable* var)
+{
+    if (hashmap_get(&scope->variables, ident, var)) {
+        return true;
+    } else if (scope->parent) {
+        return Scope_find(scope->parent, ident, var);
+    } else {
+        return false;
+    }
+}
+
+void Scope_append(struct Scope* scope, const char* ident, struct Variable* var)
+{
+    var->ident = ident;
+    var->stack_loc = scope->next_offset;
+    scope->next_offset++;
+    hashmap_set(&scope->variables, ident, var);
+}
 
 struct ASTNode {
     NodeKind kind;
@@ -219,18 +269,22 @@ struct ASTNode {
 
     union {
         int64_t i64;
+        Variable var;
     };
 };
 
-ASTNode new_binary(NodeKind kind, ASTNode left, ASTNode right)
+void ASTNode_init(struct ASTNode* node, NodeKind kind)
 {
-    ASTNode node;
-    dynarray_init_with_capacity(&node.children, sizeof(ASTNode), 2);
-    dynarray_push(&node.children, &left);
-    dynarray_push(&node.children, &right);
-    node.kind = kind;
+    node->kind = kind;
+    dynarray_init(&node->children, sizeof(ASTNode));
+}
 
-    return node;
+void ASTNode_init_binary(struct ASTNode* node, NodeKind kind, ASTNode left, ASTNode right)
+{
+    dynarray_init_with_capacity(&node->children, sizeof(ASTNode), 2);
+    dynarray_push(&node->children, &left);
+    dynarray_push(&node->children, &right);
+    node->kind = kind;
 }
 
 struct TokenIterator {
@@ -263,13 +317,24 @@ struct TokenIterator {
         }
         return false;
     }
+
+    bool consume_keyword(const char* kw)
+    {
+        if (index < size && tokens[index].kind == TOK_IDENT && strcmp(tokens[index].ident, kw) == 0) {
+            index++;
+            return true;
+        }
+
+        return false;
+    }
     
+    // TODO: add error message
     void expect(TokenType kind)
     {
         if (index < size && tokens[index].kind == kind) {
             index++;
         } else {
-            fprintf(stderr, "Unexpected token\n");
+            fprintf(stderr, "Expected token type %d, got %d instead\n", kind, tokens[index].kind);
             exit(1);
         }
     }
@@ -282,7 +347,7 @@ struct TokenIterator {
             return val;
         }
 
-        fprintf(stderr, "Unexpected token\n");
+        fprintf(stderr, "Expected int, got token kind %d instead\n", tokens[index].kind);
         exit(1);
     }
 
@@ -295,16 +360,32 @@ struct TokenIterator {
     }
 };
 
-ASTNode expr(TokenIterator& iter);
+ASTNode expr(TokenIterator& iter, struct Scope* scope);
 
-// primary = '(' expr ')' | int
-ASTNode primary(TokenIterator& iter)
+bool is_reserved(char* ident)
+{
+    return strcmp(ident, "return") == 0;
+}
+
+// primary = '(' expr ')' | ident | int
+ASTNode primary(TokenIterator& iter, struct Scope* scope)
 {
     ASTNode node;
 
+    Token tok;
     if (iter.consume(TOK_LEFT_PAREN)) {
-        node = expr(iter);
+        node = expr(iter, scope);
         iter.expect(TOK_RIGHT_PAREN);
+    } else if (iter.consume(TOK_IDENT, &tok)) {
+        if (is_reserved(tok.ident)) {
+            fprintf(stderr, "Unexpected reserved identifier\n");
+            exit(1);
+        } else {
+            ASTNode_init(&node, NODE_VAR);
+            if (!Scope_find(scope, tok.ident, &node.var)) {
+                Scope_append(scope, tok.ident, &node.var);
+            }
+        }
     } else {
         node.i64 = iter.expect_int();
         dynarray_init(&node.children, sizeof(ASTNode));
@@ -315,16 +396,18 @@ ASTNode primary(TokenIterator& iter)
 }
 
 // mul_div = primary ( ('*' | '/') primary)*
-ASTNode mul_div(TokenIterator& iter)
+ASTNode mul_div(TokenIterator& iter, struct Scope* scope)
 {
-    ASTNode node = primary(iter);
+    ASTNode node = primary(iter, scope);
 
     while (iter.has_next()) {
         if (iter.consume(TOK_MUL)) {
-            ASTNode parent = new_binary(NODE_MUL, node, primary(iter));
+            ASTNode parent;
+            ASTNode_init_binary(&parent, NODE_MUL, node, primary(iter, scope));
             node = parent;
         } else if (iter.consume(TOK_DIV)) {
-            ASTNode parent = new_binary(NODE_DIV, node, primary(iter));
+            ASTNode parent;
+            ASTNode_init_binary(&parent, NODE_DIV, node, primary(iter, scope));
             node = parent;
         } else {
             break;
@@ -334,17 +417,19 @@ ASTNode mul_div(TokenIterator& iter)
     return node;
 }
 
-// expr = mul_div ( (+|-) mul_div)*
-ASTNode expr(TokenIterator& iter)
+// add_sub = mul_div ( (+ | -) mul_div)*
+ASTNode add_sub(TokenIterator& iter, struct Scope* scope)
 {
-    ASTNode node = mul_div(iter);
+    ASTNode node = mul_div(iter, scope);
 
     while (iter.has_next()) {
         if (iter.consume(TOK_ADD)) {
-            ASTNode parent = new_binary(NODE_ADD, node, mul_div(iter));
+            ASTNode parent;
+            ASTNode_init_binary(&parent, NODE_ADD, node, mul_div(iter, scope));
             node = parent;
         } else if (iter.consume(TOK_SUB)) {
-            ASTNode parent = new_binary(NODE_SUB, node, mul_div(iter));
+            ASTNode parent;
+            ASTNode_init_binary(&parent, NODE_SUB, node, mul_div(iter, scope));
             node = parent;
         } else {
             break;
@@ -354,23 +439,40 @@ ASTNode expr(TokenIterator& iter)
     return node;
 }
 
+// assign = add_sub ( '=' assign )
+ASTNode assign_expr(TokenIterator& iter, struct Scope* scope)
+{
+    ASTNode lhs = add_sub(iter, scope);
+    if (iter.consume(TOK_ASSIGN)) {
+        // TODO: check that lhs is an lvalue
+        ASTNode rhs = assign_expr(iter, scope);
+        ASTNode node;
+        // use the rhs as the left child so that it is evaluated first
+        ASTNode_init_binary(&node, NODE_ASSIGN, rhs, lhs);
+        return node;
+    } else {
+        return lhs;
+    }
+}
+
+// expr = assign_expr
+ASTNode expr(TokenIterator& iter, struct Scope* scope)
+{
+    return assign_expr(iter, scope);
+}
+
 // statement = 'return' expr ';' | expr ';'
-ASTNode statement(TokenIterator& iter)
+ASTNode statement(TokenIterator& iter, struct Scope* scope)
 {
     ASTNode node;
-    Token tok;
-    if (iter.consume(TOK_IDENT, &tok)) {
-        if (strcmp(tok.ident, "return") == 0) {
-            dynarray_init(&node.children, sizeof(ASTNode));
-            node.kind = NODE_RETURN;
+    if (iter.consume_keyword("return")) {
+        dynarray_init(&node.children, sizeof(ASTNode));
+        node.kind = NODE_RETURN;
 
-            ASTNode child = expr(iter);
-            dynarray_push(&node.children, &child);
-        } else {
-            fprintf(stderr, "Unexpected identifier %s\n", tok.ident);
-        }
+        ASTNode child = expr(iter, scope);
+        dynarray_push(&node.children, &child);
     } else {
-        node = expr(iter);
+        node = expr(iter, scope);
     }
     iter.expect(TOK_SEMICOLON);
     return node;
@@ -382,8 +484,11 @@ ASTNode program(TokenIterator& iter)
     ASTNode program;
     program.kind = NODE_PROGRAM;
     dynarray_init(&program.children, sizeof(ASTNode));
+
+    struct Scope scope;
+    Scope_init(&scope, NULL);
     while(iter.has_next()) {
-        ASTNode node = statement(iter);
+        ASTNode node = statement(iter, &scope);
         dynarray_push(&program.children, &node);
     }
 
@@ -399,6 +504,10 @@ void print_ast(ASTNode* node, unsigned int indent)
     switch(node->kind) {
         case NODE_ADD:
             printf("ADD\n");
+            break;
+
+        case NODE_ASSIGN:
+            printf("ASSIGN\n");
             break;
 
         case NODE_SUB:
@@ -425,6 +534,10 @@ void print_ast(ASTNode* node, unsigned int indent)
             printf("RETURN\n");
             break;
 
+        case NODE_VAR:
+            printf("VAR %s\n", node->var.ident);
+            break;
+
         default:
             fprintf(stderr, "Unknown node kind\n");
             exit(1);
@@ -439,21 +552,44 @@ void print_ast(ASTNode* node, unsigned int indent)
 const char* asm_preamble =
     "global _start\n"
     "section .text\n"
-    "_start:\n";
+    "_start:\n"
+    "mov rbp, rsp\n";
 
 const char* asm_conclusion =
    "mov rax,60\n"
    "pop rdi\n"
    "syscall\n";
 
+/// Write the address of the lvalue in rax
+void codegen_addr(ASTNode node, FILE* fp)
+{
+    switch(node.kind) {
+        case NODE_VAR:
+            fprintf(fp, "lea rax, [rbp-%lu]\n", node.var.stack_loc);
+            break;
+
+        default:
+            fprintf(stderr, "Unknown lvalue type");
+    }
+}
+
 void codegen_node(ASTNode node, FILE* fp)
 {
-    for (size_t i = 0; i < dynarray_length(&node.children); i++)
-    {
-        ASTNode* child = (ASTNode*)dynarray_get(&node.children, i);
-        codegen_node(*child, fp);
+    if (node.kind == NODE_ASSIGN) {
+        ASTNode* rhs = (ASTNode*)dynarray_get(&node.children, 0);
+        codegen_node(*rhs, fp);
+        
+        ASTNode* lhs = (ASTNode*)dynarray_get(&node.children, 1);
+        codegen_addr(*lhs, fp);
+    } else {
+        for (size_t i = 0; i < dynarray_length(&node.children); i++)
+        {
+            ASTNode* child = (ASTNode*)dynarray_get(&node.children, i);
+            codegen_node(*child, fp);
+        }
     }
 
+    // TODO: write the code that is responsible for this output in an assembly comment
     switch(node.kind) {
         case NODE_INT:
             fprintf(fp, "push %ld\n", node.i64);
@@ -461,6 +597,10 @@ void codegen_node(ASTNode node, FILE* fp)
 
         case NODE_ADD:
             fprintf(fp, "pop rbx\npop rax\nadd rax, rbx\npush rax\n");
+            break;
+
+        case NODE_ASSIGN:
+            fprintf(fp, "pop qword [rax]\n");
             break;
 
         case NODE_SUB:
@@ -477,6 +617,10 @@ void codegen_node(ASTNode node, FILE* fp)
 
         case NODE_RETURN:
             fprintf(fp, "%s", asm_conclusion);
+            break;
+
+        case NODE_VAR:
+            fprintf(fp, "push qword [rbp-%lu]\n", node.var.stack_loc);
             break;
 
         default:
