@@ -15,8 +15,10 @@ enum TokenType {
     TOK_DIV,
     TOK_IDENT,
     TOK_INT,
+    TOK_LEFT_CURLY_BRACKET,
     TOK_LEFT_PAREN,
     TOK_MUL,
+    TOK_RIGHT_CURLY_BRACKET,
     TOK_RIGHT_PAREN,
     TOK_SEMICOLON,
     TOK_SUB,
@@ -71,6 +73,14 @@ void print_token(Token tok)
 
         case TOK_ASSIGN:
             printf("=");
+            break;
+
+        case TOK_LEFT_CURLY_BRACKET:
+            printf("{");
+            break;
+            
+        case TOK_RIGHT_CURLY_BRACKET:
+            printf("}");
             break;
 
         default:
@@ -206,6 +216,14 @@ void tokenize(struct dynarray* tokens, const char* input)
             Token tok;
             tok.kind = TOK_ASSIGN;
             dynarray_push(tokens, &tok);
+        } else if (iter.consume('{')) {
+            Token tok;
+            tok.kind = TOK_LEFT_CURLY_BRACKET;
+            dynarray_push(tokens, &tok);
+        } else if (iter.consume('}')) {
+            Token tok;
+            tok.kind = TOK_RIGHT_CURLY_BRACKET;
+            dynarray_push(tokens, &tok);
         } else {
             fprintf(stderr, "Unexpected token: %c\n", c);
             exit(1);
@@ -213,10 +231,10 @@ void tokenize(struct dynarray* tokens, const char* input)
     }
 }
 
-// TODO: add expression statement node that just pops the stack
 enum NodeKind {
     NODE_ADD,
     NODE_ASSIGN,
+    NODE_BLOCK,
     NODE_DIV,
     NODE_EXPR_STMT,
     NODE_INT,
@@ -440,12 +458,20 @@ ASTNode add_sub(TokenIterator& iter, struct Scope* scope)
     return node;
 }
 
+bool is_lvalue(ASTNode node)
+{
+    return node.kind == NODE_VAR;
+}
+
 // assign = add_sub ( '=' assign )
 ASTNode assign_expr(TokenIterator& iter, struct Scope* scope)
 {
     ASTNode lhs = add_sub(iter, scope);
     if (iter.consume(TOK_ASSIGN)) {
-        // TODO: check that lhs is an lvalue
+        if (!is_lvalue(lhs)) {
+            fprintf(stderr, "Expected lvalue");
+            exit(1);
+        }
         ASTNode rhs = assign_expr(iter, scope);
         ASTNode node;
         // use the rhs as the left child so that it is evaluated first
@@ -474,7 +500,7 @@ ASTNode expr_statement(TokenIterator& iter, struct Scope* scope)
     return node;
 }
 
-// statement = 'return' expr ';' | expr_statement
+// statement = 'return' expr ';' | expr_statement | '{' statement* '}'
 ASTNode statement(TokenIterator& iter, struct Scope* scope)
 {
     ASTNode node;
@@ -485,6 +511,15 @@ ASTNode statement(TokenIterator& iter, struct Scope* scope)
         ASTNode child = expr(iter, scope);
         dynarray_push(&node.children, &child);
         iter.expect(TOK_SEMICOLON);
+    } else if (iter.consume(TOK_LEFT_CURLY_BRACKET)) {
+        ASTNode_init(&node, NODE_BLOCK);
+        while (!iter.consume(TOK_RIGHT_CURLY_BRACKET)) {
+            struct Scope block_scope;
+            Scope_init(&block_scope, scope);
+
+            ASTNode child = statement(iter, &block_scope);
+            dynarray_push(&node.children, &child);
+        }
     } else {
         node = expr_statement(iter, scope);
     }
@@ -521,6 +556,10 @@ void print_ast(ASTNode* node, unsigned int indent)
 
         case NODE_ASSIGN:
             printf("ASSIGN\n");
+            break;
+
+        case NODE_BLOCK:
+            printf("BLOCK\n");
             break;
 
         case NODE_SUB:
@@ -619,6 +658,9 @@ void codegen_node(ASTNode node, FILE* fp)
             // copy from top of the stack to [rax] (address of the local variable)
             // don't pop because assignment is an expression too
             fprintf(fp, "mov rbx,[rsp]\nmov [rax],rbx\n");
+            break;
+
+        case NODE_BLOCK:
             break;
 
         case NODE_SUB:
