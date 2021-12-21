@@ -1,6 +1,7 @@
 #include "dynarray.h"
 #include <string.h>
 #include <stdio.h>
+#include "util.h"
 
 void dynarray_init(struct dynarray* arr, size_t element_size) {
     arr->element_size = element_size;
@@ -49,13 +50,13 @@ void dynarray_push(struct dynarray* arr, void* x)
 
 void* dynarray_get(const struct dynarray* arr, size_t index)
 {
-    // TODO: ASSERT(index < arr->length)
+    ASSERT(index < arr->length)
     return arr->data+index*arr->element_size;
 }
 
 void dynarray_set(struct dynarray* arr, size_t index, void* x)
 {
-    // TODO: ASSERT(index < arr->length)
+    ASSERT(index < arr->length)
     memcpy(arr->data+index*arr->element_size, x, arr->element_size);
 }
 
@@ -66,7 +67,7 @@ size_t dynarray_length(const struct dynarray* arr)
 
 void dynarray_pop(struct dynarray* arr)
 {
-    // TODO: ASSERT(arr->length > 0)
+    ASSERT(arr->length > 0)
     arr->length--;
 }
 
