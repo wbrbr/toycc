@@ -218,6 +218,7 @@ enum NodeKind {
     NODE_ADD,
     NODE_ASSIGN,
     NODE_DIV,
+    NODE_EXPR_STMT,
     NODE_INT,
     NODE_MUL,
     NODE_PROGRAM,
@@ -461,7 +462,19 @@ ASTNode expr(TokenIterator& iter, struct Scope* scope)
     return assign_expr(iter, scope);
 }
 
-// statement = 'return' expr ';' | expr ';'
+ASTNode expr_statement(TokenIterator& iter, struct Scope* scope)
+{
+    ASTNode node;
+    ASTNode_init(&node, NODE_EXPR_STMT);
+
+    ASTNode child = expr(iter, scope);
+    dynarray_push(&node.children, &child);
+
+    iter.expect(TOK_SEMICOLON);
+    return node;
+}
+
+// statement = 'return' expr ';' | expr_statement
 ASTNode statement(TokenIterator& iter, struct Scope* scope)
 {
     ASTNode node;
@@ -471,10 +484,10 @@ ASTNode statement(TokenIterator& iter, struct Scope* scope)
 
         ASTNode child = expr(iter, scope);
         dynarray_push(&node.children, &child);
+        iter.expect(TOK_SEMICOLON);
     } else {
-        node = expr(iter, scope);
+        node = expr_statement(iter, scope);
     }
-    iter.expect(TOK_SEMICOLON);
     return node;
 }
 
@@ -524,6 +537,10 @@ void print_ast(ASTNode* node, unsigned int indent)
             
         case NODE_DIV:
             printf("DIV\n");
+            break;
+
+        case NODE_EXPR_STMT:
+            printf("NODE_EXPR_STMT\n");
             break;
 
         case NODE_PROGRAM:
@@ -589,7 +606,6 @@ void codegen_node(ASTNode node, FILE* fp)
         }
     }
 
-    // TODO: write the code that is responsible for this output in an assembly comment
     switch(node.kind) {
         case NODE_INT:
             fprintf(fp, "push %ld\n", node.i64);
@@ -600,7 +616,9 @@ void codegen_node(ASTNode node, FILE* fp)
             break;
 
         case NODE_ASSIGN:
-            fprintf(fp, "pop qword [rax]\n");
+            // copy from top of the stack to [rax] (address of the local variable)
+            // don't pop because assignment is an expression too
+            fprintf(fp, "mov rbx,[rsp]\nmov [rax],rbx\n");
             break;
 
         case NODE_SUB:
@@ -613,6 +631,10 @@ void codegen_node(ASTNode node, FILE* fp)
             
         case NODE_DIV:
             fprintf(fp, "pop rbx\npop rax\nidiv rbx\npush rax\n");
+            break;
+
+        case NODE_EXPR_STMT:
+            fprintf(fp, "add rsp, 8\n");
             break;
 
         case NODE_RETURN:
@@ -635,6 +657,8 @@ void codegen(ASTNode program, FILE* fp)
 
     for (size_t i = 0; i < dynarray_length(&program.children); i++)
     {
+        // TODO: write the code of the statement in an assembly comment
+        fprintf(fp, "; statement %lu\n", i);
         ASTNode* child = (ASTNode*)dynarray_get(&program.children, i);
         codegen_node(*child, fp);
     }

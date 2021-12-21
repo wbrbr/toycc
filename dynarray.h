@@ -1,3 +1,5 @@
+#ifndef CCOMP_DYNARRAY_H
+#define CCOMP_DYNARRAY_H
 #include <stdlib.h>
 #include <stdint.h>
 
@@ -19,3 +21,5 @@ void dynarray_set(struct dynarray* arr, size_t index, void* x);
 size_t dynarray_length(const struct dynarray* arr);
 void dynarray_pop(struct dynarray* arr);
 void dynarray_map(struct dynarray* arr, void (*func)(void* ptr));
+
+#endif
