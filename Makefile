@@ -1,4 +1,4 @@
-CFLAGS = -Wall -Wextra -g -fsanitize=address
+CFLAGS = -Wall -Wextra -g -fsanitize=address,undefined
 
 all:
 	gcc -c dynarray.c -o dynarray.o $(CFLAGS)
