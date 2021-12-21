@@ -63,4 +63,5 @@ struct ASTNode {
 };
 
 void codegen(struct ASTNode program, FILE* fp);
+struct ASTNode parse(struct dynarray tokens);
 #endif //CCOMP_TOYCC_H
