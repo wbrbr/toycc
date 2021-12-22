@@ -208,15 +208,29 @@ static struct ASTNode add_sub(struct TokenIterator* iter, struct Scope* scope)
     return node;
 }
 
+// relational_expr = add_sub ( '<' add_sub )*
+static struct ASTNode relational_expr(struct TokenIterator* iter, struct Scope* scope)
+{
+    struct ASTNode node = add_sub(iter, scope);
+
+    while (consume(iter, TOK_LESS_THAN)) {
+        struct ASTNode parent;
+        ASTNode_init_binary(&parent, NODE_LESS_THAN, node, add_sub(iter, scope));
+        node = parent;
+    }
+
+    return node;
+}
+
 static bool is_lvalue(struct ASTNode node)
 {
     return node.kind == NODE_VAR;
 }
 
-// assign = add_sub ( '=' assign )
+// assign = relational_expr ( '=' assign )
 static struct ASTNode assign_expr(struct TokenIterator* iter, struct Scope* scope)
 {
-    struct ASTNode lhs = add_sub(iter, scope);
+    struct ASTNode lhs = relational_expr(iter, scope);
     if (consume(iter, TOK_ASSIGN)) {
         if (!is_lvalue(lhs)) {
             fprintf(stderr, "Expected lvalue");

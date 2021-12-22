@@ -106,6 +106,16 @@ void codegen_node(struct ASTNode node, FILE* fp)
             break;
         }
 
+        case NODE_LESS_THAN:
+            codegen_children(&node.children, fp);
+            fprintf(fp,"pop rcx\n"
+                              "pop rbx\n"
+                              "xor rax,rax\n"
+                              "cmp rbx,rcx\n"
+                              "setl al\n"
+                              "push rax\n");
+            break;
+
         case NODE_PROGRAM:
             ASSERT(0);
             break;

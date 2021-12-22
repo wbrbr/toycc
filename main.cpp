@@ -61,6 +61,10 @@ void print_token(struct Token tok)
         case TOK_RIGHT_CURLY_BRACKET:
             printf("}");
             break;
+
+        case TOK_LESS_THAN:
+            printf("<");
+            break;
     }
 }
 
@@ -199,6 +203,10 @@ void tokenize(struct dynarray* tokens, const char* input)
             Token tok;
             tok.kind = TOK_RIGHT_CURLY_BRACKET;
             dynarray_push(tokens, &tok);
+        } else if (iter.consume('<')) {
+            Token tok;
+            tok.kind = TOK_LESS_THAN;
+            dynarray_push(tokens, &tok);
         } else {
             fprintf(stderr, "Unexpected token: %c\n", c);
             exit(1);
@@ -206,6 +214,7 @@ void tokenize(struct dynarray* tokens, const char* input)
     }
 }
 
+// TODO: write a dot file instead
 void print_ast(ASTNode* node, unsigned int indent)
 {
     for (unsigned int i = 0; i < indent; i++) {
@@ -259,6 +268,14 @@ void print_ast(ASTNode* node, unsigned int indent)
 
         case NODE_VAR:
             printf("VAR %s\n", node->var.ident);
+            break;
+
+        case NODE_LESS_THAN:
+            printf("LESS_THAN\n");
+            break;
+
+        case NODE_WHILE:
+            printf("WHILE\n");
             break;
     }
 
