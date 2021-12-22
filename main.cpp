@@ -306,7 +306,7 @@ int main(int argc, char** argv)
 
     print_ast(&ast, 0);
 
-    FILE* fp = fopen("out.asm", "w");
+    FILE* fp = fopen("out.s", "w");
     if (!fp) {
         fprintf(stderr, "Failed to open out.asm");
         exit(1);

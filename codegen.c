@@ -90,6 +90,8 @@ void codegen_node(struct ASTNode node, FILE* fp)
 
         case NODE_IF:
         {
+            // TODO: use a counter for the labels
+            // TODO: else
             struct ASTNode* cond = dynarray_get(&node.children, 0);
 
             struct ASTNode* body = dynarray_get(&node.children, 1);
@@ -117,6 +119,22 @@ void codegen_node(struct ASTNode node, FILE* fp)
             codegen_children(&node.children, fp);
             fprintf(fp, "push qword [rbp-%lu]\n", node.var.stack_loc);
             break;
+
+        case NODE_WHILE:
+        {
+            struct ASTNode* cond = dynarray_get(&node.children, 0);
+            struct ASTNode* body = dynarray_get(&node.children, 1);
+
+            fprintf(fp, "while.cond:\n");
+            codegen_node(*cond, fp);
+
+            fprintf(fp, "pop rax\ntest rax,rax\njz while.end\n");
+
+            codegen_node(*body, fp);
+
+            fprintf(fp, "jmp while.cond\nwhile.end:\n");
+            break;
+        }
     }
 }
 

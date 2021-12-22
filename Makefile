@@ -12,5 +12,5 @@ all: codegen.o dynarray.o hashmap.o main.o parser.o xxhash.o
 	c++ -c $< -o $@ $(CFLAGS)
 
 asm:
-	nasm -felf64 out.asm
+	nasm -felf64 out.s
 	ld -o out out.o

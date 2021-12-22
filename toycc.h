@@ -39,6 +39,7 @@ enum NodeKind {
     NODE_RETURN,
     NODE_SUB,
     NODE_VAR,
+    NODE_WHILE,
 };
 
 struct Variable {

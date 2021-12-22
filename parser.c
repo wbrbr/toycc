@@ -250,7 +250,11 @@ static struct ASTNode expr_statement(struct TokenIterator* iter, struct Scope* s
     return node;
 }
 
-// statement = 'return' expr ';' | 'if' '(' expr ')' statement | '{' statement* '}' | expr_statement
+// statement = 'return' expr ';'
+//           | 'if' '(' expr ')' statement
+//           | 'while' '(' expr ')' statement
+//           | '{' statement* '}'
+//           | expr_statement
 static struct ASTNode statement(struct TokenIterator* iter, struct Scope* scope)
 {
     struct ASTNode node;
@@ -262,6 +266,14 @@ static struct ASTNode statement(struct TokenIterator* iter, struct Scope* scope)
         expect(iter, TOK_SEMICOLON);
     } else if (consume_keyword(iter, "if")) {
         ASTNode_init(&node, NODE_IF);
+        expect(iter, TOK_LEFT_PAREN);
+        struct ASTNode cond = expr(iter, scope);
+        expect(iter, TOK_RIGHT_PAREN);
+        struct ASTNode body = statement(iter, scope);
+        dynarray_push(&node.children, &cond);
+        dynarray_push(&node.children, &body);
+    } else if (consume_keyword(iter, "while")) {
+        ASTNode_init(&node, NODE_WHILE);
         expect(iter, TOK_LEFT_PAREN);
         struct ASTNode cond = expr(iter, scope);
         expect(iter, TOK_RIGHT_PAREN);
