@@ -153,8 +153,8 @@ static struct ASTNode primary(struct TokenIterator* iter, struct Scope* scope)
             fprintf(stderr, "Unexpected reserved identifier\n");
             exit(1);
         } else {
-            ASTNode_init(&node, NODE_VAR);
-            if (!Scope_find(scope, tok->ident, &node.var)) {
+            ASTNode_init(&node, NODE_IDENT);
+            if (!Scope_find(scope, tok->ident, &node.decl)) {
                 fprintf(stderr, "Unknown identifier: %s\n", tok->ident);
                 exit(1);
             }
@@ -228,7 +228,7 @@ static struct ASTNode relational_expr(struct TokenIterator* iter, struct Scope* 
 
 static bool is_lvalue(struct ASTNode node)
 {
-    return node.kind == NODE_VAR;
+    return node.kind == NODE_IDENT || node.decl.kind == DECL_VARIABLE;
 }
 
 // assign = relational_expr ( '=' assign )
@@ -303,11 +303,11 @@ static struct ASTNode statement(struct TokenIterator* iter, struct Scope* scope)
         ASTNode_init(&node, NODE_DECL);
         struct Token* ident = consume_tok(iter, TOK_IDENT);
         expect(iter, TOK_SEMICOLON);
-        if (hashmap_get(&scope->decls, ident->ident, &node.var)) {
+        if (hashmap_get(&scope->decls, ident->ident, &node.decl)) {
             fprintf(stderr, "Identifier already declared: %s\n", ident->ident);
             exit(1);
         } else {
-            Scope_append(scope, ident->ident, &node.var);
+            Scope_append(scope, ident->ident, &node.decl);
         }
     } else if (consume(iter, TOK_LEFT_CURLY_BRACKET)) {
         ASTNode_init(&node, NODE_BLOCK);

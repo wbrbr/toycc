@@ -233,7 +233,7 @@ int ast_to_dot_file_rec(FILE* fp, const ASTNode* node, int node_id, int parent_i
             break;
 
         case NODE_DECL:
-            fprintf(fp, "int %s\n", node->var.ident);
+            fprintf(fp, "int %s\n", node->decl.ident);
             break;
 
         case NODE_SUB:
@@ -268,8 +268,8 @@ int ast_to_dot_file_rec(FILE* fp, const ASTNode* node, int node_id, int parent_i
             fprintf(fp, "return");
             break;
 
-        case NODE_VAR:
-            fprintf(fp, "%s", node->var.ident);
+        case NODE_IDENT:
+            fprintf(fp, "%s", node->decl.ident);
             break;
 
         case NODE_LESS_THAN:

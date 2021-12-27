@@ -17,8 +17,8 @@ const char* asm_conclusion =
 void codegen_addr(struct ASTNode node, FILE* fp)
 {
     switch(node.kind) {
-        case NODE_VAR:
-            fprintf(fp, "lea rax, [rbp-%lu]\n", node.var.stack_loc);
+        case NODE_IDENT:
+            fprintf(fp, "lea rax, [rbp-%lu]\n", node.decl.stack_loc);
             break;
 
         default:
@@ -129,9 +129,9 @@ void codegen_node(struct ASTNode node, FILE* fp)
             fprintf(fp, "%s", asm_conclusion);
             break;
 
-        case NODE_VAR:
+        case NODE_IDENT:
             codegen_children(&node.children, fp);
-            fprintf(fp, "push qword [rbp-%lu]\n", node.var.stack_loc);
+            fprintf(fp, "push qword [rbp-%lu]\n", node.decl.stack_loc);
             break;
 
         case NODE_WHILE:

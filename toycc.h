@@ -34,6 +34,7 @@ enum NodeKind {
     NODE_DECL,
     NODE_DIV,
     NODE_EXPR_STMT,
+    NODE_IDENT,
     NODE_IF,
     NODE_INT,
     NODE_LESS_THAN,
@@ -41,7 +42,6 @@ enum NodeKind {
     NODE_PROGRAM,
     NODE_RETURN,
     NODE_SUB,
-    NODE_VAR,
     NODE_WHILE,
 };
 
@@ -71,7 +71,7 @@ struct ASTNode {
 
     union {
         int64_t i64;
-        struct Declaration var;
+        struct Declaration decl;
     };
 };
 
