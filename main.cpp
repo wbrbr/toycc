@@ -218,6 +218,7 @@ int ast_to_dot_file_rec(FILE* fp, const ASTNode* node, int node_id, int parent_i
 {
     fprintf(fp, "n%d [label=\"", node_id);
 
+    // TODO: alphabetical order
     switch(node->kind) {
         case NODE_ADD:
             fprintf(fp, "+");
@@ -301,78 +302,6 @@ void ast_to_dot_file(FILE* fp, const ASTNode* node)
     fprintf(fp, "}\n");
 }
 
-// TODO: write a dot file instead
-void print_ast(ASTNode* node, unsigned int indent)
-{
-    for (unsigned int i = 0; i < indent; i++) {
-        printf(" ");
-    }
-
-    switch(node->kind) {
-        case NODE_ADD:
-            printf("ADD\n");
-            break;
-
-        case NODE_ASSIGN:
-            printf("ASSIGN\n");
-            break;
-
-        case NODE_BLOCK:
-            printf("BLOCK\n");
-            break;
-
-        case NODE_SUB:
-            printf("SUB\n");
-            break;
-
-        case NODE_IF:
-            printf("IF\n");
-            break;
-
-        case NODE_INT:
-            printf("%ld\n", node->i64);
-            break;
-
-        case NODE_MUL:
-            printf("MUL\n");
-            break;
-            
-        case NODE_DIV:
-            printf("DIV\n");
-            break;
-
-        case NODE_EXPR_STMT:
-            printf("NODE_EXPR_STMT\n");
-            break;
-
-        case NODE_PROGRAM:
-            printf("PROGRAM\n");
-            break;
-
-        case NODE_RETURN:
-            printf("RETURN\n");
-            break;
-
-        case NODE_VAR:
-            printf("VAR %s\n", node->var.ident);
-            break;
-
-        case NODE_LESS_THAN:
-            printf("LESS_THAN\n");
-            break;
-
-        case NODE_WHILE:
-            printf("WHILE\n");
-            break;
-    }
-
-    for (size_t i = 0; i < dynarray_length(&node->children); i++) {
-        ASTNode* child = (ASTNode*)dynarray_get(&node->children, i);
-        print_ast(child, indent+4);
-    }
-}
-
-
 void print_int(void* ptr)
 {
     printf("%d\n", *(int*)ptr);
@@ -408,7 +337,6 @@ int main(int argc, char** argv)
 
     ASTNode ast = parse(tokens);
 
-    print_ast(&ast, 0);
     FILE* dot = fopen("ast.dot", "w");
     ast_to_dot_file(dot, &ast);
     fclose(dot);

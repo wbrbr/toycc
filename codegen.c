@@ -39,6 +39,7 @@ void codegen_children(struct dynarray* children, FILE* fp)
 
 void codegen_node(struct ASTNode node, FILE* fp)
 {
+    // TODO: alphabetical order
     switch(node.kind) {
         case NODE_INT:
             codegen_children(&node.children, fp);

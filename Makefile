@@ -14,3 +14,6 @@ all: codegen.o dynarray.o hashmap.o main.o parser.o xxhash.o
 asm:
 	nasm -felf64 out.s
 	ld -o out out.o
+
+dot:
+	dot -Tsvg -o ast.svg ast.dot
