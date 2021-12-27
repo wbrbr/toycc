@@ -214,6 +214,89 @@ void tokenize(struct dynarray* tokens, const char* input)
     }
 }
 
+int ast_to_dot_file_rec(FILE* fp, const ASTNode* node, int node_id, int parent_id)
+{
+    fprintf(fp, "n%d [label=\"", node_id);
+
+    switch(node->kind) {
+        case NODE_ADD:
+            fprintf(fp, "+");
+            break;
+
+        case NODE_ASSIGN:
+            fprintf(fp, "=");
+            break;
+
+        case NODE_BLOCK:
+            fprintf(fp, "{ }");
+            break;
+
+        case NODE_SUB:
+            fprintf(fp, "-");
+            break;
+
+        case NODE_IF:
+            fprintf(fp, "if");
+            break;
+
+        case NODE_INT:
+            fprintf(fp, "%ld", node->i64);
+            break;
+
+        case NODE_MUL:
+            fprintf(fp, "*");
+            break;
+
+        case NODE_DIV:
+            fprintf(fp, "/");
+            break;
+
+        case NODE_EXPR_STMT:
+            fprintf(fp, ";");
+            break;
+
+        case NODE_PROGRAM:
+            fprintf(fp, "PROGRAM");
+            break;
+
+        case NODE_RETURN:
+            fprintf(fp, "return");
+            break;
+
+        case NODE_VAR:
+            fprintf(fp, "%s", node->var.ident);
+            break;
+
+        case NODE_LESS_THAN:
+            fprintf(fp, "<=");
+            break;
+
+        case NODE_WHILE:
+            fprintf(fp, "while");
+            break;
+    }
+    fprintf(fp, "\"];\n");
+
+    if (parent_id >= 0) {
+        fprintf(fp, "n%d -> n%d;\n", parent_id, node_id);
+    }
+
+    int child_id = node_id+1;
+    for (unsigned int i = 0; i < dynarray_length(&node->children); i++) {
+        child_id = ast_to_dot_file_rec(fp, (ASTNode*)dynarray_get(&node->children, i), child_id, node_id);
+    }
+
+    return child_id;
+}
+
+// returns the next available id
+void ast_to_dot_file(FILE* fp, const ASTNode* node)
+{
+    fprintf(fp, "digraph {\n");
+    ast_to_dot_file_rec(fp, node, 0, -1);
+    fprintf(fp, "}\n");
+}
+
 // TODO: write a dot file instead
 void print_ast(ASTNode* node, unsigned int indent)
 {
@@ -322,6 +405,9 @@ int main(int argc, char** argv)
     ASTNode ast = parse(tokens);
 
     print_ast(&ast, 0);
+    FILE* dot = fopen("ast.dot", "w");
+    ast_to_dot_file(dot, &ast);
+    fclose(dot);
 
     FILE* fp = fopen("out.s", "w");
     if (!fp) {
