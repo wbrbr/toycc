@@ -60,7 +60,7 @@ void codegen_node(struct ASTNode node, FILE* fp)
 
             // copy from top of the stack to [rax] (address of the local variable)
             // don't pop because assignment is an expression too
-            fprintf(fp, "mov rbx,[rsp]\nmov [rax],rbx\n");
+            fprintf(fp, "mov rbx,[rsp]\nmov [rax],rbx\nsub rsp,8\n");
             break;
         }
 

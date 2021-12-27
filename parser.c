@@ -27,7 +27,7 @@ void Scope_append(struct Scope* scope, const char* ident, struct Variable* var)
 {
     var->ident = ident;
     var->stack_loc = scope->next_offset;
-    scope->next_offset++;
+    scope->next_offset += 8;
     hashmap_set(&scope->variables, ident, var);
 }
 
