@@ -238,8 +238,8 @@ static struct ASTNode assign_expr(struct TokenIterator* iter, struct Scope* scop
         }
         struct ASTNode rhs = assign_expr(iter, scope);
         struct ASTNode node;
-        // use the rhs as the left child so that it is evaluated first
-        ASTNode_init_binary(&node, NODE_ASSIGN, rhs, lhs);
+
+        ASTNode_init_binary(&node, NODE_ASSIGN, lhs, rhs);
         return node;
     } else {
         return lhs;

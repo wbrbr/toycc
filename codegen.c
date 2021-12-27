@@ -52,10 +52,10 @@ void codegen_node(struct ASTNode node, FILE* fp)
 
         case NODE_ASSIGN:
         {
-            struct ASTNode* rhs = dynarray_get(&node.children, 0);
+            struct ASTNode* rhs = dynarray_get(&node.children, 1);
             codegen_node(*rhs, fp);
 
-            struct ASTNode* lhs = dynarray_get(&node.children, 1);
+            struct ASTNode* lhs = dynarray_get(&node.children, 0);
             codegen_addr(*lhs, fp);
 
             // copy from top of the stack to [rax] (address of the local variable)
