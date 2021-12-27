@@ -45,14 +45,20 @@ enum NodeKind {
     NODE_WHILE,
 };
 
-struct Variable {
+enum DeclKind {
+    DECL_VARIABLE,
+    DECL_FUNCTION
+};
+
+struct Declaration {
     const char* ident;
+    enum DeclKind kind;
     size_t stack_loc;
 };
 
 struct Scope {
     const struct Scope* parent;
-    struct hashmap variables;
+    struct hashmap decls;
 };
 
 struct StackFrame {
@@ -65,7 +71,7 @@ struct ASTNode {
 
     union {
         int64_t i64;
-        struct Variable var;
+        struct Declaration var;
     };
 };
 

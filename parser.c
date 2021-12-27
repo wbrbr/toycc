@@ -10,12 +10,12 @@ struct StackFrame frame = { 0 };
 void Scope_init(struct Scope* scope, const struct Scope* parent)
 {
     scope->parent = parent;
-    hashmap_init(&scope->variables, sizeof(struct Variable));
+    hashmap_init(&scope->decls, sizeof(struct Declaration));
 }
 
-bool Scope_find(const struct Scope* scope, const char* ident, struct Variable* var)
+bool Scope_find(const struct Scope* scope, const char* ident, struct Declaration* var)
 {
-    if (hashmap_get(&scope->variables, ident, var)) {
+    if (hashmap_get(&scope->decls, ident, var)) {
         return true;
     } else if (scope->parent) {
         return Scope_find(scope->parent, ident, var);
@@ -24,12 +24,12 @@ bool Scope_find(const struct Scope* scope, const char* ident, struct Variable* v
     }
 }
 
-void Scope_append(struct Scope* scope, const char* ident, struct Variable* var)
+void Scope_append(struct Scope* scope, const char* ident, struct Declaration* var)
 {
     var->ident = ident;
     var->stack_loc = frame.size;
     frame.size += 8;
-    hashmap_set(&scope->variables, ident, var);
+    hashmap_set(&scope->decls, ident, var);
 }
 
 void ASTNode_init(struct ASTNode* node, enum NodeKind kind)
@@ -303,7 +303,7 @@ static struct ASTNode statement(struct TokenIterator* iter, struct Scope* scope)
         ASTNode_init(&node, NODE_DECL);
         struct Token* ident = consume_tok(iter, TOK_IDENT);
         expect(iter, TOK_SEMICOLON);
-        if (hashmap_get(&scope->variables, ident->ident, &node.var)) {
+        if (hashmap_get(&scope->decls, ident->ident, &node.var)) {
             fprintf(stderr, "Identifier already declared: %s\n", ident->ident);
             exit(1);
         } else {
