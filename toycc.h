@@ -31,6 +31,7 @@ enum NodeKind {
     NODE_ADD,
     NODE_ASSIGN,
     NODE_BLOCK,
+    NODE_DECL,
     NODE_DIV,
     NODE_EXPR_STMT,
     NODE_IF,
@@ -52,7 +53,10 @@ struct Variable {
 struct Scope {
     const struct Scope* parent;
     struct hashmap variables;
-    size_t next_offset;
+};
+
+struct StackFrame {
+    size_t size;
 };
 
 struct ASTNode {

@@ -5,11 +5,12 @@
 #include "hashmap.h"
 #include "dynarray.h"
 
+struct StackFrame frame = { 0 };
+
 void Scope_init(struct Scope* scope, const struct Scope* parent)
 {
     scope->parent = parent;
     hashmap_init(&scope->variables, sizeof(struct Variable));
-    scope->next_offset = parent ? parent->next_offset : 0;
 }
 
 bool Scope_find(const struct Scope* scope, const char* ident, struct Variable* var)
@@ -26,8 +27,8 @@ bool Scope_find(const struct Scope* scope, const char* ident, struct Variable* v
 void Scope_append(struct Scope* scope, const char* ident, struct Variable* var)
 {
     var->ident = ident;
-    var->stack_loc = scope->next_offset;
-    scope->next_offset += 8;
+    var->stack_loc = frame.size;
+    frame.size += 8;
     hashmap_set(&scope->variables, ident, var);
 }
 
@@ -121,8 +122,10 @@ static struct Token peek(struct TokenIterator* iter) {
 static struct ASTNode expr(struct TokenIterator* iter, struct Scope* scope);
 
 const char* reserved_identifiers[] = {
-        "return",
         "if",
+        "int",
+        "return",
+        "while",
         NULL
 };
 
@@ -152,7 +155,8 @@ static struct ASTNode primary(struct TokenIterator* iter, struct Scope* scope)
         } else {
             ASTNode_init(&node, NODE_VAR);
             if (!Scope_find(scope, tok->ident, &node.var)) {
-                Scope_append(scope, tok->ident, &node.var);
+                fprintf(stderr, "Unknown identifier: %s\n", tok->ident);
+                exit(1);
             }
         }
     } else {
@@ -268,6 +272,7 @@ static struct ASTNode expr_statement(struct TokenIterator* iter, struct Scope* s
 //           | 'if' '(' expr ')' statement
 //           | 'while' '(' expr ')' statement
 //           | '{' statement* '}'
+//           | 'int' ident ';'
 //           | expr_statement
 static struct ASTNode statement(struct TokenIterator* iter, struct Scope* scope)
 {
@@ -294,6 +299,16 @@ static struct ASTNode statement(struct TokenIterator* iter, struct Scope* scope)
         struct ASTNode body = statement(iter, scope);
         dynarray_push(&node.children, &cond);
         dynarray_push(&node.children, &body);
+    } else if (consume_keyword(iter, "int")) {
+        ASTNode_init(&node, NODE_DECL);
+        struct Token* ident = consume_tok(iter, TOK_IDENT);
+        expect(iter, TOK_SEMICOLON);
+        if (hashmap_get(&scope->variables, ident->ident, &node.var)) {
+            fprintf(stderr, "Identifier already declared: %s\n", ident->ident);
+            exit(1);
+        } else {
+            Scope_append(scope, ident->ident, &node.var);
+        }
     } else if (consume(iter, TOK_LEFT_CURLY_BRACKET)) {
         ASTNode_init(&node, NODE_BLOCK);
         while (!consume(iter, TOK_RIGHT_CURLY_BRACKET)) {

@@ -68,6 +68,9 @@ void codegen_node(struct ASTNode node, FILE* fp)
             codegen_children(&node.children, fp);
             break;
 
+        case NODE_DECL:
+            break;
+
         case NODE_SUB:
             codegen_children(&node.children, fp);
             fprintf(fp, "pop rbx\npop rax\nsub rax, rbx\npush rax\n");
