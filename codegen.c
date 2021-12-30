@@ -7,11 +7,9 @@ const char* asm_preamble =
         "section .text\n"
         "_start:\n"
         "mov rbp, rsp\n"
-        "call main\n";
-
-const char* asm_conclusion =
-        "mov rax,60\n"
-        "pop rdi\n"
+        "call main\n"
+        "mov rdi, rax\n"
+        "mov rax, 60\n"
         "syscall\n";
 
 /// Write the address of the lvalue in rax
@@ -138,7 +136,10 @@ void codegen_node(struct ASTNode node, FILE* fp)
 
         case NODE_RETURN:
             codegen_children(&node.children, fp);
-            fprintf(fp, "%s", asm_conclusion);
+            fprintf(fp, "pop rax\n"
+                        "mov rsp, rbp\n"
+                        "pop rbp\n"
+                        "ret\n");
             break;
 
         case NODE_IDENT:
@@ -170,11 +171,8 @@ void codegen(struct ASTNode program, FILE* fp)
 
     for (size_t i = 0; i < dynarray_length(&program.children); i++)
     {
-        // TODO: write the code of the statement in an assembly comment
         fprintf(fp, "; statement %lu\n", i);
         struct ASTNode* child = dynarray_get(&program.children, i);
         codegen_node(*child, fp);
     }
-
-    fprintf(fp, "%s", asm_conclusion);
 }
