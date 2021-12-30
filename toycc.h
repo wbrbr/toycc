@@ -6,6 +6,7 @@
 enum TokenType {
     TOK_ADD,
     TOK_ASSIGN,
+    TOK_COMMA,
     TOK_DIV,
     TOK_IDENT,
     TOK_INT,
@@ -34,6 +35,7 @@ enum NodeKind {
     NODE_DECL,
     NODE_DIV,
     NODE_EXPR_STMT,
+    NODE_FUNCTION_DEF,
     NODE_IDENT,
     NODE_IF,
     NODE_INT,
@@ -50,19 +52,28 @@ enum DeclKind {
     DECL_FUNCTION
 };
 
+struct FunctionDeclaration {
+    // TODO: return type
+    // TODO: parameter types
+    unsigned int frame_size;
+};
+
+struct VariableDeclaration {
+    size_t stack_loc;
+};
+
 struct Declaration {
     const char* ident;
     enum DeclKind kind;
-    size_t stack_loc;
+    union {
+        struct VariableDeclaration var_decl;
+        struct FunctionDeclaration fun_decl;
+    };
 };
 
 struct Scope {
     const struct Scope* parent;
     struct hashmap decls;
-};
-
-struct StackFrame {
-    size_t size;
 };
 
 struct ASTNode {

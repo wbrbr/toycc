@@ -13,6 +13,7 @@ extern "C" {
 
 void print_token(struct Token tok)
 {
+    // TODO: alphabetical order
     switch(tok.kind) {
         case TOK_INT:
             printf("%ld ", tok.i64);
@@ -20,6 +21,10 @@ void print_token(struct Token tok)
 
         case TOK_ADD:
             printf("+ ");
+            break;
+
+        case TOK_COMMA:
+            printf(", ");
             break;
 
         case TOK_SUB:
@@ -207,6 +212,10 @@ void tokenize(struct dynarray* tokens, const char* input)
             Token tok;
             tok.kind = TOK_LESS_THAN;
             dynarray_push(tokens, &tok);
+        } else if (iter.consume(',')) {
+            Token tok;
+            tok.kind = TOK_COMMA;
+            dynarray_push(tokens, &tok);
         } else {
             fprintf(stderr, "Unexpected token: %c\n", c);
             exit(1);
@@ -233,7 +242,11 @@ int ast_to_dot_file_rec(FILE* fp, const ASTNode* node, int node_id, int parent_i
             break;
 
         case NODE_DECL:
-            fprintf(fp, "int %s\n", node->decl.ident);
+            fprintf(fp, "int %s", node->decl.ident);
+            break;
+
+        case NODE_FUNCTION_DEF:
+            fprintf(fp, "fun %s", node->decl.ident);
             break;
 
         case NODE_SUB:
@@ -285,6 +298,8 @@ int ast_to_dot_file_rec(FILE* fp, const ASTNode* node, int node_id, int parent_i
     if (parent_id >= 0) {
         fprintf(fp, "n%d -> n%d;\n", parent_id, node_id);
     }
+
+    fflush(fp);
 
     int child_id = node_id+1;
     for (unsigned int i = 0; i < dynarray_length(&node->children); i++) {

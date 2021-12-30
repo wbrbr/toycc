@@ -5,7 +5,10 @@
 #include "hashmap.h"
 #include "dynarray.h"
 
-struct StackFrame frame = { 0 };
+struct Context {
+    struct Scope* scope;
+    unsigned int* frame_size;
+};
 
 void Scope_init(struct Scope* scope, const struct Scope* parent)
 {
@@ -24,12 +27,15 @@ bool Scope_find(const struct Scope* scope, const char* ident, struct Declaration
     }
 }
 
-void Scope_append(struct Scope* scope, const char* ident, struct Declaration* var)
+void Scope_append(struct Scope* scope, const struct Declaration* var)
 {
-    var->ident = ident;
-    var->stack_loc = frame.size;
-    frame.size += 8;
-    hashmap_set(&scope->decls, ident, var);
+    // TODO: do a single query
+    struct Declaration scratch;
+    if (hashmap_get(&scope->decls, var->ident, &scratch)) {
+        fprintf(stderr, "Identifier already declared in this scope: %s\n", var->ident);
+        exit(1);
+    }
+    hashmap_set(&scope->decls, var->ident, var);
 }
 
 void ASTNode_init(struct ASTNode* node, enum NodeKind kind)
@@ -115,11 +121,11 @@ static bool has_next(struct TokenIterator* iter) {
     return iter->index < iter->size;
 }
 
-static struct Token peek(struct TokenIterator* iter) {
-    return iter->tokens[iter->index];
+static bool peek(struct TokenIterator* iter, enum TokenType kind) {
+    return iter->index < iter->size && iter->tokens[iter->index].kind == kind;
 }
 
-static struct ASTNode expr(struct TokenIterator* iter, struct Scope* scope);
+static struct ASTNode expr(struct TokenIterator* iter, struct Context ctx);
 
 const char* reserved_identifiers[] = {
         "if",
@@ -140,13 +146,13 @@ static bool is_reserved(char* ident)
 }
 
 // primary = '(' expr ')' | ident | int
-static struct ASTNode primary(struct TokenIterator* iter, struct Scope* scope)
+static struct ASTNode primary(struct TokenIterator* iter, struct Context ctx)
 {
     struct ASTNode node;
 
     struct Token* tok;
     if (consume(iter, TOK_LEFT_PAREN)) {
-        node = expr(iter, scope);
+        node = expr(iter, ctx);
         expect(iter,TOK_RIGHT_PAREN);
     } else if ((tok = consume_tok(iter, TOK_IDENT))) {
         if (is_reserved(tok->ident)) {
@@ -154,7 +160,7 @@ static struct ASTNode primary(struct TokenIterator* iter, struct Scope* scope)
             exit(1);
         } else {
             ASTNode_init(&node, NODE_IDENT);
-            if (!Scope_find(scope, tok->ident, &node.decl)) {
+            if (!Scope_find(ctx.scope, tok->ident, &node.decl)) {
                 fprintf(stderr, "Unknown identifier: %s\n", tok->ident);
                 exit(1);
             }
@@ -169,18 +175,18 @@ static struct ASTNode primary(struct TokenIterator* iter, struct Scope* scope)
 }
 
 // mul_div = primary ( ('*' | '/') primary)*
-static struct ASTNode mul_div(struct TokenIterator* iter, struct Scope* scope)
+static struct ASTNode mul_div(struct TokenIterator* iter, struct Context ctx)
 {
-    struct ASTNode node = primary(iter, scope);
+    struct ASTNode node = primary(iter, ctx);
 
     while (has_next(iter)) {
         if (consume(iter, TOK_MUL)) {
             struct ASTNode parent;
-            ASTNode_init_binary(&parent, NODE_MUL, node, primary(iter, scope));
+            ASTNode_init_binary(&parent, NODE_MUL, node, primary(iter, ctx));
             node = parent;
         } else if (consume(iter, TOK_DIV)) {
             struct ASTNode parent;
-            ASTNode_init_binary(&parent, NODE_DIV, node, primary(iter, scope));
+            ASTNode_init_binary(&parent, NODE_DIV, node, primary(iter, ctx));
             node = parent;
         } else {
             break;
@@ -191,18 +197,18 @@ static struct ASTNode mul_div(struct TokenIterator* iter, struct Scope* scope)
 }
 
 // add_sub = mul_div ( (+ | -) mul_div)*
-static struct ASTNode add_sub(struct TokenIterator* iter, struct Scope* scope)
+static struct ASTNode add_sub(struct TokenIterator* iter, struct Context ctx)
 {
-    struct ASTNode node = mul_div(iter, scope);
+    struct ASTNode node = mul_div(iter, ctx);
 
     while (has_next(iter)) {
         if (consume(iter, TOK_ADD)) {
             struct ASTNode parent;
-            ASTNode_init_binary(&parent, NODE_ADD, node, mul_div(iter, scope));
+            ASTNode_init_binary(&parent, NODE_ADD, node, mul_div(iter, ctx));
             node = parent;
         } else if (consume(iter, TOK_SUB)) {
             struct ASTNode parent;
-            ASTNode_init_binary(&parent, NODE_SUB, node, mul_div(iter, scope));
+            ASTNode_init_binary(&parent, NODE_SUB, node, mul_div(iter, ctx));
             node = parent;
         } else {
             break;
@@ -213,13 +219,13 @@ static struct ASTNode add_sub(struct TokenIterator* iter, struct Scope* scope)
 }
 
 // relational_expr = add_sub ( '<' add_sub )*
-static struct ASTNode relational_expr(struct TokenIterator* iter, struct Scope* scope)
+static struct ASTNode relational_expr(struct TokenIterator* iter, struct Context ctx)
 {
-    struct ASTNode node = add_sub(iter, scope);
+    struct ASTNode node = add_sub(iter, ctx);
 
     while (consume(iter, TOK_LESS_THAN)) {
         struct ASTNode parent;
-        ASTNode_init_binary(&parent, NODE_LESS_THAN, node, add_sub(iter, scope));
+        ASTNode_init_binary(&parent, NODE_LESS_THAN, node, add_sub(iter, ctx));
         node = parent;
     }
 
@@ -232,15 +238,15 @@ static bool is_lvalue(struct ASTNode node)
 }
 
 // assign = relational_expr ( '=' assign )
-static struct ASTNode assign_expr(struct TokenIterator* iter, struct Scope* scope)
+static struct ASTNode assign_expr(struct TokenIterator* iter, struct Context ctx)
 {
-    struct ASTNode lhs = relational_expr(iter, scope);
+    struct ASTNode lhs = relational_expr(iter, ctx);
     if (consume(iter, TOK_ASSIGN)) {
         if (!is_lvalue(lhs)) {
             fprintf(stderr, "Expected lvalue");
             exit(1);
         }
-        struct ASTNode rhs = assign_expr(iter, scope);
+        struct ASTNode rhs = assign_expr(iter, ctx);
         struct ASTNode node;
 
         ASTNode_init_binary(&node, NODE_ASSIGN, lhs, rhs);
@@ -251,77 +257,150 @@ static struct ASTNode assign_expr(struct TokenIterator* iter, struct Scope* scop
 }
 
 // expr = assign_expr
-static struct ASTNode expr(struct TokenIterator* iter, struct Scope* scope)
+static struct ASTNode expr(struct TokenIterator* iter, struct Context ctx)
 {
-    return assign_expr(iter, scope);
+    return assign_expr(iter, ctx);
 }
 
-static struct ASTNode expr_statement(struct TokenIterator* iter, struct Scope* scope)
+static struct ASTNode expr_statement(struct TokenIterator* iter, struct Context ctx)
 {
     struct ASTNode node;
     ASTNode_init(&node, NODE_EXPR_STMT);
 
-    struct ASTNode child = expr(iter, scope);
+    struct ASTNode child = expr(iter, ctx);
     dynarray_push(&node.children, &child);
 
     expect(iter, TOK_SEMICOLON);
     return node;
 }
 
+static struct ASTNode compound_statement(struct TokenIterator* iter, struct Context ctx);
+
 // statement = 'return' expr ';'
 //           | 'if' '(' expr ')' statement
 //           | 'while' '(' expr ')' statement
-//           | '{' statement* '}'
 //           | 'int' ident ';'
+//           | compound_statement
 //           | expr_statement
-static struct ASTNode statement(struct TokenIterator* iter, struct Scope* scope)
+static struct ASTNode statement(struct TokenIterator* iter, struct Context ctx)
 {
     struct ASTNode node;
     if (consume_keyword(iter, "return")) {
         ASTNode_init(&node, NODE_RETURN);
 
-        struct ASTNode child = expr(iter, scope);
+        struct ASTNode child = expr(iter, ctx);
         dynarray_push(&node.children, &child);
         expect(iter, TOK_SEMICOLON);
     } else if (consume_keyword(iter, "if")) {
         ASTNode_init(&node, NODE_IF);
         expect(iter, TOK_LEFT_PAREN);
-        struct ASTNode cond = expr(iter, scope);
+        struct ASTNode cond = expr(iter, ctx);
         expect(iter, TOK_RIGHT_PAREN);
-        struct ASTNode body = statement(iter, scope);
+        struct ASTNode body = statement(iter, ctx);
         dynarray_push(&node.children, &cond);
         dynarray_push(&node.children, &body);
     } else if (consume_keyword(iter, "while")) {
         ASTNode_init(&node, NODE_WHILE);
         expect(iter, TOK_LEFT_PAREN);
-        struct ASTNode cond = expr(iter, scope);
+        struct ASTNode cond = expr(iter, ctx);
         expect(iter, TOK_RIGHT_PAREN);
-        struct ASTNode body = statement(iter, scope);
+        struct ASTNode body = statement(iter, ctx);
         dynarray_push(&node.children, &cond);
         dynarray_push(&node.children, &body);
     } else if (consume_keyword(iter, "int")) {
         ASTNode_init(&node, NODE_DECL);
         struct Token* ident = consume_tok(iter, TOK_IDENT);
         expect(iter, TOK_SEMICOLON);
-        if (hashmap_get(&scope->decls, ident->ident, &node.decl)) {
-            fprintf(stderr, "Identifier already declared: %s\n", ident->ident);
-            exit(1);
-        } else {
-            Scope_append(scope, ident->ident, &node.decl);
-        }
-    } else if (consume(iter, TOK_LEFT_CURLY_BRACKET)) {
-        ASTNode_init(&node, NODE_BLOCK);
-        while (!consume(iter, TOK_RIGHT_CURLY_BRACKET)) {
-            struct Scope block_scope;
-            Scope_init(&block_scope, scope);
-
-            struct ASTNode child = statement(iter, &block_scope);
-            dynarray_push(&node.children, &child);
-        }
+        node.decl.ident = ident->ident;
+        node.decl.kind = DECL_VARIABLE;
+        node.decl.var_decl.stack_loc = *ctx.frame_size;
+        *ctx.frame_size += 8;
+        Scope_append(ctx.scope, &node.decl);
+    } else if (peek(iter, TOK_LEFT_CURLY_BRACKET)) {
+        node = compound_statement(iter, ctx);
     } else {
-        node = expr_statement(iter, scope);
+        node = expr_statement(iter, ctx);
     }
     return node;
+}
+
+// compound_statement = '{' statement* '}'
+static struct ASTNode compound_statement(struct TokenIterator* iter, struct Context ctx)
+{
+    expect(iter, TOK_LEFT_CURLY_BRACKET);
+
+    struct ASTNode node;
+    ASTNode_init(&node, NODE_BLOCK);
+
+    struct Context block_ctx = ctx;
+    Scope_init(block_ctx.scope, ctx.scope);
+
+    while (!consume(iter, TOK_RIGHT_CURLY_BRACKET)) {
+        struct ASTNode child = statement(iter, block_ctx);
+        dynarray_push(&node.children, &child);
+    }
+
+    return node;
+}
+
+static struct ASTNode function_definition(struct TokenIterator* iter, struct Scope* scope)
+{
+    if (consume_keyword(iter, "int")) {
+        struct Token* tok = consume_tok(iter, TOK_IDENT);
+
+        struct Declaration decl;
+        decl.ident = tok->ident;
+        decl.kind = DECL_FUNCTION;
+        decl.fun_decl.frame_size = 0;
+
+        expect(iter, TOK_LEFT_PAREN);
+
+        struct Scope fun_scope;
+        Scope_init(&fun_scope, scope);
+
+        while (!consume(iter, TOK_RIGHT_PAREN)) {
+            if (!consume_keyword(iter, "int")) {
+                fprintf(stderr, "invalid parameter declaration\n");
+                exit(1);
+            }
+
+            struct Token* param = consume_tok(iter, TOK_IDENT);
+
+            struct Declaration param_decl;
+            param_decl.kind = DECL_VARIABLE;
+            param_decl.ident = param->ident;
+
+            param_decl.var_decl.stack_loc = decl.fun_decl.frame_size;
+            decl.fun_decl.frame_size += 8;
+
+            Scope_append(&fun_scope, &param_decl);
+
+            consume(iter, TOK_COMMA);
+        }
+
+        struct Context ctx;
+        ctx.scope = &fun_scope;
+        ctx.frame_size = &decl.fun_decl.frame_size;
+
+        // we have to declare the function before parsing the body even though we don't know the frame size yet
+        // otherwise we can't handle recursion
+        Scope_append(scope, &decl);
+
+        struct ASTNode body = compound_statement(iter, ctx);
+
+        // overwrite the declaration with the correct frame size
+        hashmap_set(&scope->decls, tok->ident, &decl);
+
+        struct ASTNode node;
+        ASTNode_init(&node, NODE_FUNCTION_DEF);
+        node.decl = decl;
+        dynarray_push(&node.children, &body);
+
+        return node;
+    } else {
+        fprintf(stderr, "expected function definition\n");
+        exit(1);
+    }
 }
 
 // program = statement*
@@ -336,7 +415,8 @@ struct ASTNode parse(struct dynarray tokens)
     struct Scope scope;
     Scope_init(&scope, NULL);
     while(has_next(&iter)) {
-        struct ASTNode node = statement(&iter, &scope);
+        //struct ASTNode node = statement(&iter, &scope);
+        struct ASTNode node = function_definition(&iter, &scope);
         dynarray_push(&program.children, &node);
     }
 

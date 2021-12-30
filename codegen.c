@@ -6,7 +6,8 @@ const char* asm_preamble =
         "global _start\n"
         "section .text\n"
         "_start:\n"
-        "mov rbp, rsp\n";
+        "mov rbp, rsp\n"
+        "call main\n";
 
 const char* asm_conclusion =
         "mov rax,60\n"
@@ -18,7 +19,7 @@ void codegen_addr(struct ASTNode node, FILE* fp)
 {
     switch(node.kind) {
         case NODE_IDENT:
-            fprintf(fp, "lea rax, [rbp-%lu]\n", node.decl.stack_loc);
+            fprintf(fp, "lea rax, [rbp-%lu]\n", node.decl.var_decl.stack_loc);
             break;
 
         default:
@@ -92,6 +93,17 @@ void codegen_node(struct ASTNode node, FILE* fp)
             fprintf(fp, "add rsp, 8\n");
             break;
 
+        case NODE_FUNCTION_DEF:
+            fprintf(fp, "%s:\n"
+                        "push rbp\n"
+                        "mov rbp, rsp\n"
+                        "sub rsp, %u\n", node.decl.ident, node.decl.fun_decl.frame_size);
+            codegen_children(&node.children, fp);
+            fprintf(fp, "mov rsp, rbp\n"
+                        "pop rbp\n"
+                        "ret\n");
+            break;
+
         case NODE_IF:
         {
             // TODO: use a counter for the labels
@@ -131,7 +143,7 @@ void codegen_node(struct ASTNode node, FILE* fp)
 
         case NODE_IDENT:
             codegen_children(&node.children, fp);
-            fprintf(fp, "push qword [rbp-%lu]\n", node.decl.stack_loc);
+            fprintf(fp, "push qword [rbp-%lu]\n", node.decl.var_decl.stack_loc);
             break;
 
         case NODE_WHILE:
