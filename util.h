@@ -7,4 +7,5 @@
         exit(1); \
     } \
 
+char* read_file(const char* path);
 #endif //CCOMP_UTIL_H

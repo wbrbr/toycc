@@ -8,6 +8,7 @@ extern "C" {
 #include "dynarray.h"
 #include "hashmap.h"
 #include "toycc.h"
+#include "util.h"
 }
 
 
@@ -335,12 +336,15 @@ int main(int argc, char** argv)
     dynarray_destroy(&test);
 
     if (argc != 2) {
-        fprintf(stderr, "Usage: %s <expr>\n", argv[0]);
+        fprintf(stderr, "Usage: %s <file>\n", argv[0]);
         exit(1);
     }
+
+    char* input = read_file(argv[1]);
+
     struct dynarray tokens;
     dynarray_init(&tokens, sizeof(Token));
-    tokenize(&tokens, argv[1]);
+    tokenize(&tokens, input);
 
     for (size_t i = 0; i < dynarray_length(&tokens); i++) {
         Token* tok = (Token*)dynarray_get(&tokens, i);
