@@ -12,12 +12,17 @@ const char* asm_preamble =
         "mov rax, 60\n"
         "syscall\n";
 
+void load_stack_loc_rax(size_t stack_loc, FILE* fp)
+{
+    fprintf(fp, "lea rax, [rbp-%lu]\n", stack_loc);
+}
+
 /// Write the address of the lvalue in rax
 void codegen_addr(struct ASTNode node, FILE* fp)
 {
     switch(node.kind) {
         case NODE_IDENT:
-            fprintf(fp, "lea rax, [rbp-%lu]\n", node.decl.var_decl.stack_loc);
+            load_stack_loc_rax(node.decl.var_decl.stack_loc, fp);
             break;
 
         default:
@@ -34,6 +39,17 @@ void codegen_children(struct dynarray* children, FILE* fp)
         struct ASTNode* child = dynarray_get(children, i);
         codegen_node(*child, fp);
     }
+}
+
+/// the address of the lvalue must be in rax
+/// the value must be on top of the stack
+void codegen_assign(FILE* fp)
+{
+    // copy from top of the stack to [rax] (address of the local variable)
+    // don't pop because assignment is an expression too
+    fprintf(fp, "mov rbx,[rsp]\n"
+                "mov [rax],rbx\n"
+                "sub rsp,8\n");
 }
 
 void codegen_node(struct ASTNode node, FILE* fp)
@@ -58,9 +74,7 @@ void codegen_node(struct ASTNode node, FILE* fp)
             struct ASTNode* lhs = dynarray_get(&node.children, 0);
             codegen_addr(*lhs, fp);
 
-            // copy from top of the stack to [rax] (address of the local variable)
-            // don't pop because assignment is an expression too
-            fprintf(fp, "mov rbx,[rsp]\nmov [rax],rbx\nsub rsp,8\n");
+            codegen_assign(fp);
             break;
         }
 
@@ -69,6 +83,14 @@ void codegen_node(struct ASTNode node, FILE* fp)
             break;
 
         case NODE_DECL:
+            // codegen the rhs
+            codegen_children(&node.children, fp);
+            // now the value is on top of the stack
+
+            // we need to put the address of the lvalue in rax
+            load_stack_loc_rax(node.decl.var_decl.stack_loc, fp);
+
+            codegen_assign(fp);
             break;
 
         case NODE_SUB:

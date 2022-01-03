@@ -279,7 +279,7 @@ static struct ASTNode compound_statement(struct TokenIterator* iter, struct Cont
 // statement = 'return' expr ';'
 //           | 'if' '(' expr ')' statement
 //           | 'while' '(' expr ')' statement
-//           | 'int' ident ';'
+//           | 'int' ident ( '=' assign_expr )? ';'
 //           | compound_statement
 //           | expr_statement
 static struct ASTNode statement(struct TokenIterator* iter, struct Context ctx)
@@ -310,6 +310,18 @@ static struct ASTNode statement(struct TokenIterator* iter, struct Context ctx)
     } else if (consume_keyword(iter, "int")) {
         ASTNode_init(&node, NODE_DECL);
         struct Token* ident = consume_tok(iter, TOK_IDENT);
+
+        if (consume(iter, TOK_ASSIGN)) {
+            struct ASTNode rhs = assign_expr(iter, ctx);
+
+            struct ASTNode assign;
+            ASTNode_init(&assign, NODE_ASSIGN);
+
+            struct ASTNode lvalue;
+            ASTNode_init(&lvalue, NODE_IDENT);
+            dynarray_push(&node.children, &rhs);
+        }
+
         expect(iter, TOK_SEMICOLON);
         node.decl.ident = ident->ident;
         node.decl.kind = DECL_VARIABLE;
