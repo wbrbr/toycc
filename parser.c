@@ -232,15 +232,29 @@ static struct ASTNode relational_expr(struct TokenIterator* iter, struct Context
     return node;
 }
 
+// equality_expr = relational_expr ( '==' relational_expr )*
+static struct ASTNode equality_expr(struct TokenIterator* iter, struct Context ctx)
+{
+    struct ASTNode node = relational_expr(iter, ctx);
+
+    while (consume(iter, TOK_EQUALS)) {
+        struct ASTNode parent;
+        ASTNode_init_binary(&parent, NODE_EQUALS, node, relational_expr(iter, ctx));
+        node = parent;
+    }
+
+    return node;
+}
+
 static bool is_lvalue(struct ASTNode node)
 {
     return node.kind == NODE_IDENT || node.decl.kind == DECL_VARIABLE;
 }
 
-// assign = relational_expr ( '=' assign )
+// assign = equality_expr ( '=' equality_expr )
 static struct ASTNode assign_expr(struct TokenIterator* iter, struct Context ctx)
 {
-    struct ASTNode lhs = relational_expr(iter, ctx);
+    struct ASTNode lhs = equality_expr(iter, ctx);
     if (consume(iter, TOK_ASSIGN)) {
         if (!is_lvalue(lhs)) {
             fprintf(stderr, "Expected lvalue");

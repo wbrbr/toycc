@@ -40,6 +40,10 @@ void print_token(struct Token tok)
             printf("/ ");
             break;
 
+        case TOK_EQUALS:
+            printf("== ");
+            break;
+
         case TOK_LEFT_PAREN:
             printf("(");
             break;
@@ -63,7 +67,7 @@ void print_token(struct Token tok)
         case TOK_LEFT_CURLY_BRACKET:
             printf("{");
             break;
-            
+
         case TOK_RIGHT_CURLY_BRACKET:
             printf("}");
             break;
@@ -199,7 +203,12 @@ void tokenize(struct dynarray* tokens, const char* input)
             dynarray_push(tokens, &tok);
         } else if (iter.consume('=')) {
             Token tok;
-            tok.kind = TOK_ASSIGN;
+            if (iter.peek() == '=') {
+                iter.next();
+                tok.kind = TOK_EQUALS;
+            } else {
+                tok.kind = TOK_ASSIGN;
+            }
             dynarray_push(tokens, &tok);
         } else if (iter.consume('{')) {
             Token tok;
@@ -244,6 +253,10 @@ int ast_to_dot_file_rec(FILE* fp, const ASTNode* node, int node_id, int parent_i
 
         case NODE_DECL:
             fprintf(fp, "int %s", node->decl.ident);
+            break;
+
+        case NODE_EQUALS:
+            fprintf(fp, "==");
             break;
 
         case NODE_FUNCTION_DEF:

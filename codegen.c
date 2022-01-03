@@ -54,6 +54,12 @@ void codegen_assign(FILE* fp)
 
 void codegen_node(struct ASTNode node, FILE* fp)
 {
+    // it would be better to use an atomic if we ever want to multithread this
+    // but it is not in C99 and I want toycc to be able to compile itself. I might
+    // I decide to implement C11 atomics. For now, I don't plan to multithread toycc
+    // so this shouldn't be problematic
+    static unsigned int label_num = 0;
+
     // TODO: alphabetical order
     switch(node.kind) {
         case NODE_INT:
@@ -108,6 +114,16 @@ void codegen_node(struct ASTNode node, FILE* fp)
             fprintf(fp, "pop rbx\npop rax\nidiv rbx\npush rax\n");
             break;
 
+        case NODE_EQUALS:
+            codegen_children(&node.children, fp);
+            fprintf(fp, "pop rcx\n"
+                        "pop rbx\n"
+                        "xor rax,rax\n"
+                        "cmp rbx,rcx\n"
+                        "sete al\n"
+                        "push rax\n");
+            break;
+
         case NODE_EXPR_STMT:
             codegen_children(&node.children, fp);
             fprintf(fp, "add rsp, 8\n");
@@ -126,7 +142,9 @@ void codegen_node(struct ASTNode node, FILE* fp)
 
         case NODE_IF:
         {
-            // TODO: use a counter for the labels
+            unsigned int cur_label = label_num;
+            label_num++;
+
             // TODO: else
             struct ASTNode* cond = dynarray_get(&node.children, 0);
 
@@ -134,11 +152,11 @@ void codegen_node(struct ASTNode node, FILE* fp)
 
             codegen_node(*cond, fp);
 
-            fprintf(fp, "pop rax\ntest rax, rax\njz _false\n");
+            fprintf(fp, "pop rax\ntest rax, rax\njz if.false.%u\n", cur_label);
 
             codegen_node(*body, fp);
 
-            fprintf(fp, "_false:\n");
+            fprintf(fp, "if.false.%u:\n", cur_label);
             break;
         }
 
@@ -171,17 +189,19 @@ void codegen_node(struct ASTNode node, FILE* fp)
 
         case NODE_WHILE:
         {
+            unsigned int cur_label = label_num;
+            label_num++;
             struct ASTNode* cond = dynarray_get(&node.children, 0);
             struct ASTNode* body = dynarray_get(&node.children, 1);
 
-            fprintf(fp, "while.cond:\n");
+            fprintf(fp, "while.cond.%u:\n", cur_label);
             codegen_node(*cond, fp);
 
-            fprintf(fp, "pop rax\ntest rax,rax\njz while.end\n");
+            fprintf(fp, "pop rax\ntest rax,rax\njz while.end.%u\n", cur_label);
 
             codegen_node(*body, fp);
 
-            fprintf(fp, "jmp while.cond\nwhile.end:\n");
+            fprintf(fp, "jmp while.cond.%u\nwhile.end.%u:\n", cur_label, cur_label);
             break;
         }
     }
