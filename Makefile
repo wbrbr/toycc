@@ -17,3 +17,10 @@ asm:
 
 dot:
 	dot -Tsvg -o ast.svg ast.dot
+
+clean:
+	rm -f *.o
+	rm -f out.s
+	rm -f out
+	rm -f ast.dot
+	rm -f toycc
