@@ -1,4 +1,4 @@
-CFLAGS = -Wall -Wextra -g -fsanitize=address,undefined
+CFLAGS = -Wall -Wextra -g -fsanitize=undefined
 
 all: codegen.o dynarray.o hashmap.o main.o parser.o util.o xxhash.o
 	c++ $^ -o toycc $(CFLAGS)
