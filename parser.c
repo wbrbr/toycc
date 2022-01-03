@@ -332,8 +332,12 @@ static struct ASTNode compound_statement(struct TokenIterator* iter, struct Cont
     struct ASTNode node;
     ASTNode_init(&node, NODE_BLOCK);
 
+    // TODO: use a better datastructure
+    struct Scope* scope = malloc(sizeof(struct Scope));
+    Scope_init(scope, ctx.scope);
+
     struct Context block_ctx = ctx;
-    Scope_init(block_ctx.scope, ctx.scope);
+    ctx.scope = scope;
 
     while (!consume(iter, TOK_RIGHT_CURLY_BRACKET)) {
         struct ASTNode child = statement(iter, block_ctx);
