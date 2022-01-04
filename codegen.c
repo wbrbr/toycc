@@ -60,13 +60,7 @@ void codegen_node(struct ASTNode node, FILE* fp)
     // so this shouldn't be problematic
     static unsigned int label_num = 0;
 
-    // TODO: alphabetical order
     switch(node.kind) {
-        case NODE_INT:
-            codegen_children(&node.children, fp);
-            fprintf(fp, "push %ld\n", node.i64);
-            break;
-
         case NODE_ADD:
             codegen_children(&node.children, fp);
             fprintf(fp, "pop rbx\npop rax\nadd rax, rbx\npush rax\n");
@@ -113,16 +107,6 @@ void codegen_node(struct ASTNode node, FILE* fp)
             load_stack_loc_rax(node.decl.var_decl.stack_loc, fp);
 
             codegen_assign(fp);
-            break;
-
-        case NODE_SUB:
-            codegen_children(&node.children, fp);
-            fprintf(fp, "pop rbx\npop rax\nsub rax, rbx\npush rax\n");
-            break;
-
-        case NODE_MUL:
-            codegen_children(&node.children, fp);
-            fprintf(fp, "pop rbx\npop rax\nimul rax, rbx\npush rax\n");
             break;
 
         case NODE_DIV:
@@ -184,14 +168,29 @@ void codegen_node(struct ASTNode node, FILE* fp)
             break;
         }
 
+        case NODE_IDENT:
+            codegen_children(&node.children, fp);
+            fprintf(fp, "push qword [rbp-%lu]\n", node.decl.var_decl.stack_loc);
+            break;
+
+        case NODE_INT:
+            codegen_children(&node.children, fp);
+            fprintf(fp, "push %ld\n", node.i64);
+            break;
+
         case NODE_LESS_THAN:
             codegen_children(&node.children, fp);
             fprintf(fp,"pop rcx\n"
-                              "pop rbx\n"
-                              "xor rax,rax\n"
-                              "cmp rbx,rcx\n"
-                              "setl al\n"
-                              "push rax\n");
+                       "pop rbx\n"
+                       "xor rax,rax\n"
+                       "cmp rbx,rcx\n"
+                       "setl al\n"
+                       "push rax\n");
+            break;
+
+        case NODE_MUL:
+            codegen_children(&node.children, fp);
+            fprintf(fp, "pop rbx\npop rax\nimul rax, rbx\npush rax\n");
             break;
 
         case NODE_PROGRAM:
@@ -206,10 +205,11 @@ void codegen_node(struct ASTNode node, FILE* fp)
                         "ret\n");
             break;
 
-        case NODE_IDENT:
+        case NODE_SUB:
             codegen_children(&node.children, fp);
-            fprintf(fp, "push qword [rbp-%lu]\n", node.decl.var_decl.stack_loc);
+            fprintf(fp, "pop rbx\npop rax\nsub rax, rbx\npush rax\n");
             break;
+
 
         case NODE_WHILE:
         {

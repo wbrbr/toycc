@@ -14,14 +14,13 @@ extern "C" {
 
 void print_token(struct Token tok)
 {
-    // TODO: alphabetical order
     switch(tok.kind) {
-        case TOK_INT:
-            printf("%ld ", tok.i64);
-            break;
-
         case TOK_ADD:
             printf("+ ");
+            break;
+
+        case TOK_ASSIGN:
+            printf("=");
             break;
 
         case TOK_ASSIGN_ADD:
@@ -32,14 +31,6 @@ void print_token(struct Token tok)
             printf(", ");
             break;
 
-        case TOK_SUB:
-            printf("- ");
-            break;
-
-        case TOK_MUL:
-            printf("* ");
-            break;
-
         case TOK_DIV:
             printf("/ ");
             break;
@@ -48,8 +39,32 @@ void print_token(struct Token tok)
             printf("== ");
             break;
 
+        case TOK_IDENT:
+            printf("%s ", tok.ident);
+            break;
+
+        case TOK_INT:
+            printf("%ld ", tok.i64);
+            break;
+
+        case TOK_LEFT_CURLY_BRACKET:
+            printf("{ ");
+            break;
+
         case TOK_LEFT_PAREN:
             printf("(");
+            break;
+
+        case TOK_LESS_THAN:
+            printf("< ");
+            break;
+
+        case TOK_MUL:
+            printf("* ");
+            break;
+
+        case TOK_RIGHT_CURLY_BRACKET:
+            printf("} ");
             break;
 
         case TOK_RIGHT_PAREN:
@@ -60,24 +75,8 @@ void print_token(struct Token tok)
             printf(";");
             break;
 
-        case TOK_IDENT:
-            printf("%s ", tok.ident);
-            break;
-
-        case TOK_ASSIGN:
-            printf("=");
-            break;
-
-        case TOK_LEFT_CURLY_BRACKET:
-            printf("{ ");
-            break;
-
-        case TOK_RIGHT_CURLY_BRACKET:
-            printf("} ");
-            break;
-
-        case TOK_LESS_THAN:
-            printf("< ");
+        case TOK_SUB:
+            printf("- ");
             break;
     }
 }
@@ -221,7 +220,6 @@ int ast_to_dot_file_rec(FILE* fp, const ASTNode* node, int node_id, int parent_i
 {
     fprintf(fp, "n%d [label=\"", node_id);
 
-    // TODO: alphabetical order
     switch(node->kind) {
         case NODE_ADD:
             fprintf(fp, "+");
@@ -243,16 +241,24 @@ int ast_to_dot_file_rec(FILE* fp, const ASTNode* node, int node_id, int parent_i
             fprintf(fp, "int %s", node->decl.ident);
             break;
 
+        case NODE_DIV:
+            fprintf(fp, "/");
+            break;
+
         case NODE_EQUALS:
             fprintf(fp, "==");
+            break;
+
+        case NODE_EXPR_STMT:
+            fprintf(fp, ";");
             break;
 
         case NODE_FUNCTION_DEF:
             fprintf(fp, "fun %s", node->decl.ident);
             break;
 
-        case NODE_SUB:
-            fprintf(fp, "-");
+        case NODE_IDENT:
+            fprintf(fp, "%s", node->decl.ident);
             break;
 
         case NODE_IF:
@@ -263,16 +269,12 @@ int ast_to_dot_file_rec(FILE* fp, const ASTNode* node, int node_id, int parent_i
             fprintf(fp, "%ld", node->i64);
             break;
 
+        case NODE_LESS_THAN:
+            fprintf(fp, "<=");
+            break;
+
         case NODE_MUL:
             fprintf(fp, "*");
-            break;
-
-        case NODE_DIV:
-            fprintf(fp, "/");
-            break;
-
-        case NODE_EXPR_STMT:
-            fprintf(fp, ";");
             break;
 
         case NODE_PROGRAM:
@@ -283,12 +285,8 @@ int ast_to_dot_file_rec(FILE* fp, const ASTNode* node, int node_id, int parent_i
             fprintf(fp, "return");
             break;
 
-        case NODE_IDENT:
-            fprintf(fp, "%s", node->decl.ident);
-            break;
-
-        case NODE_LESS_THAN:
-            fprintf(fp, "<=");
+        case NODE_SUB:
+            fprintf(fp, "-");
             break;
 
         case NODE_WHILE:
