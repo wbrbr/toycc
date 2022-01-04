@@ -43,6 +43,10 @@ void print_token(struct Token tok)
             printf("%s ", tok.ident);
             break;
 
+        case TOK_INCREMENT:
+            printf("++ ");
+            break;
+
         case TOK_INT:
             printf("%ld ", tok.i64);
             break;
@@ -179,6 +183,8 @@ void tokenize(struct dynarray* tokens, const char* input)
         } else if (iter.consume('+')) {
             if (iter.consume('=')) {
                 tok.kind = TOK_ASSIGN_ADD;
+            } else if (iter.consume('+')) {
+                tok.kind = TOK_INCREMENT;
             } else {
                 tok.kind = TOK_ADD;
             }
@@ -275,6 +281,10 @@ int ast_to_dot_file_rec(FILE* fp, const ASTNode* node, int node_id, int parent_i
 
         case NODE_MUL:
             fprintf(fp, "*");
+            break;
+
+        case NODE_POSTFIX_INCREMENT:
+            fprintf(fp, "++");
             break;
 
         case NODE_PROGRAM:

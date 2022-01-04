@@ -193,6 +193,15 @@ void codegen_node(struct ASTNode node, FILE* fp)
             fprintf(fp, "pop rbx\npop rax\nimul rax, rbx\npush rax\n");
             break;
 
+        case NODE_POSTFIX_INCREMENT:
+        {
+            struct ASTNode *operand = dynarray_get(&node.children, 0);
+            codegen_addr(*operand, fp);
+            fprintf(fp, "push qword [rax]\n"
+                        "inc qword [rax]\n");
+            break;
+        }
+
         case NODE_PROGRAM:
             ASSERT(0);
             break;

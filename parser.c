@@ -146,6 +146,24 @@ static bool is_reserved(char* ident)
     return false;
 }
 
+static bool is_lvalue(struct ASTNode node)
+{
+    return node.kind == NODE_IDENT || node.decl.kind == DECL_VARIABLE;
+}
+
+static void check_lvalue(struct ASTNode node)
+{
+    if (!is_lvalue(node)) {
+        fprintf(stderr, "Expected lvalue");
+        exit(1);
+    }
+}
+
+static void check_modifiable_lvalue(struct ASTNode node)
+{
+    return check_lvalue(node);
+}
+
 // primary = '(' expr ')' | ident | int
 static struct ASTNode primary(struct TokenIterator* iter, struct Context ctx)
 {
@@ -175,19 +193,40 @@ static struct ASTNode primary(struct TokenIterator* iter, struct Context ctx)
     return node;
 }
 
-// mul_div = primary ( ('*' | '/') primary)*
-static struct ASTNode mul_div(struct TokenIterator* iter, struct Context ctx)
+// postfix_expr = primary ('++')*
+static struct ASTNode postfix_expr(struct TokenIterator* iter, struct Context ctx)
 {
     struct ASTNode node = primary(iter, ctx);
 
     while (has_next(iter)) {
+        if (consume(iter, TOK_INCREMENT)) {
+            check_modifiable_lvalue(node);
+
+            struct ASTNode parent;
+            ASTNode_init(&parent, NODE_POSTFIX_INCREMENT);
+            dynarray_push(&parent.children, &node);
+            node = parent;
+        } else {
+            break;
+        }
+    }
+
+    return node;
+}
+
+// mul_div = postfix_expr ( ('*' | '/') postfix_expr)*
+static struct ASTNode mul_div(struct TokenIterator* iter, struct Context ctx)
+{
+    struct ASTNode node = postfix_expr(iter, ctx);
+
+    while (has_next(iter)) {
         if (consume(iter, TOK_MUL)) {
             struct ASTNode parent;
-            ASTNode_init_binary(&parent, NODE_MUL, node, primary(iter, ctx));
+            ASTNode_init_binary(&parent, NODE_MUL, node, postfix_expr(iter, ctx));
             node = parent;
         } else if (consume(iter, TOK_DIV)) {
             struct ASTNode parent;
-            ASTNode_init_binary(&parent, NODE_DIV, node, primary(iter, ctx));
+            ASTNode_init_binary(&parent, NODE_DIV, node, postfix_expr(iter, ctx));
             node = parent;
         } else {
             break;
@@ -245,19 +284,6 @@ static struct ASTNode equality_expr(struct TokenIterator* iter, struct Context c
     }
 
     return node;
-}
-
-static bool is_lvalue(struct ASTNode node)
-{
-    return node.kind == NODE_IDENT || node.decl.kind == DECL_VARIABLE;
-}
-
-static void check_lvalue(struct ASTNode node)
-{
-    if (!is_lvalue(node)) {
-        fprintf(stderr, "Expected lvalue");
-        exit(1);
-    }
 }
 
 // assign = equality_expr ( ('=' | '+=') equality_expr )
