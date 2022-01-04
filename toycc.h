@@ -40,6 +40,7 @@ enum NodeKind {
     NODE_DIV,
     NODE_EQUALS,
     NODE_EXPR_STMT,
+    NODE_FOR,
     NODE_FUNCTION_DEF,
     NODE_IDENT,
     NODE_IF,

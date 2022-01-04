@@ -259,6 +259,10 @@ int ast_to_dot_file_rec(FILE* fp, const ASTNode* node, int node_id, int parent_i
             fprintf(fp, ";");
             break;
 
+        case NODE_FOR:
+            fprintf(fp, "for");
+            break;
+
         case NODE_FUNCTION_DEF:
             fprintf(fp, "fun %s", node->decl.ident);
             break;
@@ -276,7 +280,7 @@ int ast_to_dot_file_rec(FILE* fp, const ASTNode* node, int node_id, int parent_i
             break;
 
         case NODE_LESS_THAN:
-            fprintf(fp, "<=");
+            fprintf(fp, "<");
             break;
 
         case NODE_MUL:

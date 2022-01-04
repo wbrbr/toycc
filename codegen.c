@@ -129,6 +129,34 @@ void codegen_node(struct ASTNode node, FILE* fp)
             fprintf(fp, "add rsp, 8\n");
             break;
 
+        case NODE_FOR:
+        {
+            unsigned int cur_label = label_num;
+            label_num++;
+
+            struct ASTNode* init = dynarray_get(&node.children, 0);
+            struct ASTNode* cond = dynarray_get(&node.children, 1);
+            struct ASTNode* increment = dynarray_get(&node.children, 2);
+            struct ASTNode* body = dynarray_get(&node.children, 3);
+
+            codegen_node(*init, fp);
+
+            fprintf(fp, "add rsp,8\n"
+                        "for.cond.%u:\n", cur_label);
+
+            codegen_node(*cond, fp);
+            fprintf(fp, "pop rax\n"
+                        "test rax,rax\n"
+                        "jz for.end.%u\n", cur_label);
+
+            codegen_node(*body, fp);
+            codegen_node(*increment, fp);
+            fprintf(fp, "add rsp,8\n"
+                        "jmp for.cond.%u\n"
+                        "for.end.%u:\n", cur_label, cur_label);
+            break;
+        }
+
         case NODE_FUNCTION_DEF:
             fprintf(fp, "%s:\n"
                         "push rbp\n"

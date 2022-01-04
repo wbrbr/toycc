@@ -129,6 +129,7 @@ static struct ASTNode expr(struct TokenIterator* iter, struct Context ctx);
 
 const char* reserved_identifiers[] = {
         "else",
+        "for",
         "if",
         "int",
         "return",
@@ -332,6 +333,7 @@ static struct ASTNode compound_statement(struct TokenIterator* iter, struct Cont
 // statement = 'return' expr ';'
 //           | 'if' '(' expr ')' statement ( 'else' statement )?
 //           | 'while' '(' expr ')' statement
+//           | 'for' '(' declaration? expr? ';' expr? ';' expr? ')' statement
 //           | 'int' ident ( '=' assign_expr )? ';'
 //           | compound_statement
 //           | expr_statement
@@ -364,6 +366,42 @@ static struct ASTNode statement(struct TokenIterator* iter, struct Context ctx)
         expect(iter, TOK_RIGHT_PAREN);
         struct ASTNode body = statement(iter, ctx);
         dynarray_push(&node.children, &cond);
+        dynarray_push(&node.children, &body);
+    } else if (consume_keyword(iter, "for")) {
+        ASTNode_init(&node, NODE_FOR);
+        expect(iter, TOK_LEFT_PAREN);
+
+        struct ASTNode init;
+        if (consume(iter, TOK_SEMICOLON)) {
+            ASTNode_init(&init, NODE_INT);
+            init.i64 = 0;
+        } else {
+            init = expr(iter, ctx);
+            expect(iter, TOK_SEMICOLON);
+        }
+        dynarray_push(&node.children, &init);
+
+        struct ASTNode cond;
+        if (consume(iter, TOK_SEMICOLON)) {
+            ASTNode_init(&cond, NODE_INT);
+            cond.i64 = 1;
+        } else {
+            cond = expr(iter, ctx);
+            expect(iter, TOK_SEMICOLON);
+        }
+        dynarray_push(&node.children, &cond);
+
+        struct ASTNode increment;
+        if (consume(iter, TOK_RIGHT_PAREN)) {
+            ASTNode_init(&increment, NODE_INT);
+            increment.i64 = 0;
+        } else {
+            increment = expr(iter, ctx);
+            expect(iter, TOK_RIGHT_PAREN);
+        }
+        dynarray_push(&node.children, &increment);
+
+        struct ASTNode body = statement(iter, ctx);
         dynarray_push(&node.children, &body);
     } else if (consume_keyword(iter, "int")) {
         ASTNode_init(&node, NODE_DECL);
