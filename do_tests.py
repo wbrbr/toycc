@@ -5,11 +5,15 @@ from glob import glob
 
 exit_code = 0
 for f in glob("tests/end2end/*.c"):
-    gcc_ret = subprocess.run(["gcc", f, "-o", "ref"]).returncode
+    gcc_ret = subprocess.run(["gcc", f, "-o", "ref"], capture_output=True).returncode
     toycc_ret = subprocess.run(["./toycc", f], capture_output=True).returncode
     if gcc_ret != toycc_ret:
         print(f"Compilation error: {f}")
         exit_code = 1
+        continue
+
+    # the test case is not a valid program
+    if gcc_ret != 0:
         continue
 
     if subprocess.run(["nasm", "-felf64", "out.s"]).returncode != 0:
