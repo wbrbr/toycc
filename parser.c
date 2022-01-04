@@ -148,7 +148,7 @@ static bool is_reserved(char* ident)
 
 static bool is_lvalue(struct ASTNode node)
 {
-    return node.kind == NODE_IDENT || node.decl.kind == DECL_VARIABLE;
+    return node.kind == NODE_IDENT && node.decl.kind == DECL_VARIABLE;
 }
 
 static void check_lvalue(struct ASTNode node)

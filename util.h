@@ -4,7 +4,7 @@
 #define ASSERT(cond) \
     if (!(cond)) { \
         fprintf(stderr, "Assertion failed at %s:%d: %s\n", __FILE__, __LINE__, #cond); \
-        exit(1); \
+        exit(2); \
     } \
 
 char* read_file(const char* path);

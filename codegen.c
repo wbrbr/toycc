@@ -26,7 +26,7 @@ void codegen_addr(struct ASTNode node, FILE* fp)
             break;
 
         default:
-            fprintf(stderr, "Unknown lvalue type");
+            ASSERT(0 && "Unknown lvalue type");
     }
 }
 
