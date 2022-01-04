@@ -1,5 +1,6 @@
 #ifndef CCOMP_TOYCC_H
 #define CCOMP_TOYCC_H
+#include <stdio.h>
 #include "dynarray.h"
 #include "hashmap.h"
 
@@ -54,6 +55,19 @@ enum NodeKind {
     NODE_WHILE,
 };
 
+enum TypeKind {
+    TYPE_FLOAT,
+    TYPE_INCOMPLETE,
+    TYPE_INT,
+    TYPE_VOID,
+};
+
+struct Type {
+    enum TypeKind kind;
+    int size; // we use an int because the size of some types is unknown at compile-time (incomplete types, VLA)
+    unsigned int alignment;
+};
+
 enum DeclKind {
     DECL_VARIABLE,
     DECL_FUNCTION
@@ -72,6 +86,7 @@ struct VariableDeclaration {
 struct Declaration {
     const char* ident;
     enum DeclKind kind;
+    struct Type type;
     union {
         struct VariableDeclaration var;
         struct FunctionDeclaration fun;

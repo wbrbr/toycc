@@ -5,6 +5,7 @@
 #include "hashmap.h"
 #include "dynarray.h"
 #include "util.h"
+#include "type.h"
 
 struct Context {
     struct Scope* scope;
@@ -436,6 +437,7 @@ static struct ASTNode statement(struct TokenIterator* iter, struct Context ctx)
 
         expect(iter, TOK_SEMICOLON);
         node.data.decl.ident = ident->data.ident;
+        node.data.decl.type = Type_int();
         node.data.decl.kind = DECL_VARIABLE;
         node.data.decl.data.var.stack_loc = *ctx.frame_size;
         *ctx.frame_size += 8;
