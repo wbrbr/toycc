@@ -14,6 +14,7 @@ for f in glob("tests/end2end/*.c"):
 
     # the test case is not a valid program
     if gcc_ret != 0:
+        print(f"Passed: {f}")
         continue
 
     if subprocess.run(["nasm", "-felf64", "out.s"]).returncode != 0:
@@ -32,5 +33,7 @@ for f in glob("tests/end2end/*.c"):
         print(f"Error at runtime: {f}")
         exit_code = 1
         continue
+
+    print(f"Passed: {f}")
 
 sys.exit(exit_code)
