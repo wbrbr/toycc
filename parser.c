@@ -4,6 +4,7 @@
 #include "toycc.h"
 #include "hashmap.h"
 #include "dynarray.h"
+#include "util.h"
 
 struct Context {
     struct Scope* scope;
@@ -123,6 +124,14 @@ static bool has_next(struct TokenIterator* iter) {
 
 static bool peek(struct TokenIterator* iter, enum TokenType kind) {
     return iter->index < iter->size && iter->tokens[iter->index].kind == kind;
+}
+
+static bool peek_keyword(struct TokenIterator* iter, const char* kw) {
+    if (iter->index < iter->size && iter->tokens[iter->index].kind == TOK_IDENT && strcmp(iter->tokens[iter->index].ident, kw) == 0) {
+        return true;
+    }
+
+    return false;
 }
 
 static struct ASTNode expr(struct TokenIterator* iter, struct Context ctx);
@@ -333,7 +342,7 @@ static struct ASTNode compound_statement(struct TokenIterator* iter, struct Cont
 // statement = 'return' expr ';'
 //           | 'if' '(' expr ')' statement ( 'else' statement )?
 //           | 'while' '(' expr ')' statement
-//           | 'for' '(' declaration? expr? ';' expr? ';' expr? ')' statement
+//           | 'for' '(' (declaration | ( expr ';'))? expr? ';' expr? ')' statement
 //           | 'int' ident ( '=' assign_expr )? ';'
 //           | compound_statement
 //           | expr_statement
@@ -371,10 +380,17 @@ static struct ASTNode statement(struct TokenIterator* iter, struct Context ctx)
         ASTNode_init(&node, NODE_FOR);
         expect(iter, TOK_LEFT_PAREN);
 
+        struct Scope for_scope;
+        Scope_init(&for_scope, ctx.scope);
+        ctx.scope = &for_scope;
+
         struct ASTNode init;
         if (consume(iter, TOK_SEMICOLON)) {
             ASTNode_init(&init, NODE_INT);
             init.i64 = 0;
+        } else if (peek_keyword(iter, "int")) {
+            init = statement(iter, ctx);
+            ASSERT(init.kind == NODE_DECL);
         } else {
             init = expr(iter, ctx);
             expect(iter, TOK_SEMICOLON);
