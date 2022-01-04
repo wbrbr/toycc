@@ -167,77 +167,53 @@ void tokenize(struct dynarray* tokens, const char* input)
 {
     CharIterator iter(input, strlen(input));
 
-    // TODO: factor this a bit
     while (iter.has_next()) {
+        Token tok;
         char c = iter.peek();
         if (isspace(c)) {
             iter.next();
+            continue;
         } else if (isdigit(c)) {
-            Token tok = match_num(iter);
-            dynarray_push(tokens, &tok);
+            tok = match_num(iter);
         } else if (isalpha(c)) {
-            Token tok = match_ident(iter);
-            dynarray_push(tokens, &tok);
+            tok = match_ident(iter);
         } else if (iter.consume('+')) {
-            Token tok;
             if (iter.consume('=')) {
                 tok.kind = TOK_ASSIGN_ADD;
             } else {
                 tok.kind = TOK_ADD;
             }
-            dynarray_push(tokens, &tok);
         } else if (iter.consume('-')) {
-            Token tok;
             tok.kind = TOK_SUB;
-            dynarray_push(tokens, &tok);
         } else if (iter.consume('*')) {
-            Token tok;
             tok.kind = TOK_MUL;
-            dynarray_push(tokens, &tok);
         } else if (iter.consume('/')) {
-            Token tok;
             tok.kind = TOK_DIV;
-            dynarray_push(tokens, &tok);
         } else if (iter.consume('(')) {
-            Token tok;
             tok.kind = TOK_LEFT_PAREN;
-            dynarray_push(tokens, &tok);
         } else if (iter.consume(')')) {
-            Token tok;
             tok.kind = TOK_RIGHT_PAREN;
-            dynarray_push(tokens, &tok);
         } else if (iter.consume(';')) {
-            Token tok;
             tok.kind = TOK_SEMICOLON;
-            dynarray_push(tokens, &tok);
         } else if (iter.consume('=')) {
-            Token tok;
             if (iter.consume('=')) {
                 tok.kind = TOK_EQUALS;
             } else {
                 tok.kind = TOK_ASSIGN;
             }
-            dynarray_push(tokens, &tok);
         } else if (iter.consume('{')) {
-            Token tok;
             tok.kind = TOK_LEFT_CURLY_BRACKET;
-            dynarray_push(tokens, &tok);
         } else if (iter.consume('}')) {
-            Token tok;
             tok.kind = TOK_RIGHT_CURLY_BRACKET;
-            dynarray_push(tokens, &tok);
         } else if (iter.consume('<')) {
-            Token tok;
             tok.kind = TOK_LESS_THAN;
-            dynarray_push(tokens, &tok);
         } else if (iter.consume(',')) {
-            Token tok;
             tok.kind = TOK_COMMA;
-            dynarray_push(tokens, &tok);
         } else {
             fprintf(stderr, "Unexpected token: %c\n", c);
             exit(1);
         }
+        dynarray_push(tokens, &tok);
     }
 }
 
@@ -253,6 +229,10 @@ int ast_to_dot_file_rec(FILE* fp, const ASTNode* node, int node_id, int parent_i
 
         case NODE_ASSIGN:
             fprintf(fp, "=");
+            break;
+
+        case NODE_ASSIGN_ADD:
+            fprintf(fp, "+=");
             break;
 
         case NODE_BLOCK:
