@@ -2,14 +2,11 @@
 #include <stdlib.h>
 #include <stdint.h>
 #include <ctype.h>
-#include <vector>
 #include <string.h>
-extern "C" {
 #include "dynarray.h"
 #include "hashmap.h"
 #include "toycc.h"
 #include "util.h"
-}
 
 void print_token(struct Token tok)
 {
@@ -84,7 +81,7 @@ void print_token(struct Token tok)
     }
 }
 
-int ast_to_dot_file_rec(FILE* fp, const ASTNode* node, int node_id, int parent_id)
+int ast_to_dot_file_rec(FILE* fp, const struct ASTNode* node, int node_id, int parent_id)
 {
     fprintf(fp, "n%d [label=\"", node_id);
 
@@ -179,14 +176,14 @@ int ast_to_dot_file_rec(FILE* fp, const ASTNode* node, int node_id, int parent_i
 
     int child_id = node_id+1;
     for (unsigned int i = 0; i < dynarray_length(&node->children); i++) {
-        child_id = ast_to_dot_file_rec(fp, (ASTNode*)dynarray_get(&node->children, i), child_id, node_id);
+        child_id = ast_to_dot_file_rec(fp, dynarray_get(&node->children, i), child_id, node_id);
     }
 
     return child_id;
 }
 
 // returns the next available id
-void ast_to_dot_file(FILE* fp, const ASTNode* node)
+void ast_to_dot_file(FILE* fp, const struct ASTNode* node)
 {
     fprintf(fp, "digraph {\n");
     ast_to_dot_file_rec(fp, node, 0, -1);
@@ -208,18 +205,18 @@ int main(int argc, char** argv)
     char* input = read_file(argv[1]);
 
     struct dynarray tokens;
-    dynarray_init(&tokens, sizeof(Token));
+    dynarray_init(&tokens, sizeof(struct Token));
     tokenize(&tokens, input);
 
     for (size_t i = 0; i < dynarray_length(&tokens); i++) {
-        Token* tok = (Token*)dynarray_get(&tokens, i);
+        struct Token* tok = dynarray_get(&tokens, i);
         print_token(*tok);
     }
 
     printf("\n");
     fflush(stdout);
 
-    ASTNode ast = parse(tokens);
+    struct ASTNode ast = parse(tokens);
 
     FILE* dot = fopen("ast.dot", "w");
     ast_to_dot_file(dot, &ast);

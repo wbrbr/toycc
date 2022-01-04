@@ -8,9 +8,6 @@ all: codegen.o dynarray.o hashmap.o lexer.o main.o parser.o util.o xxhash.o
 %.o: %.c
 	cc -c $< -o $@ $(CFLAGS)
 
-%.o: %.cpp
-	c++ -c $< -o $@ $(CFLAGS)
-
 asm:
 	nasm -felf64 out.s
 	ld -o out out.o
