@@ -145,7 +145,6 @@ void codegen_node(struct ASTNode node, FILE* fp)
             unsigned int cur_label = label_num;
             label_num++;
 
-            // TODO: else
             struct ASTNode* cond = dynarray_get(&node.children, 0);
 
             struct ASTNode* body = dynarray_get(&node.children, 1);
@@ -155,8 +154,17 @@ void codegen_node(struct ASTNode node, FILE* fp)
             fprintf(fp, "pop rax\ntest rax, rax\njz if.false.%u\n", cur_label);
 
             codegen_node(*body, fp);
+            fprintf(fp, "jmp if.end.%u\n", cur_label);
 
             fprintf(fp, "if.false.%u:\n", cur_label);
+
+            // else branch
+            if (dynarray_length(&node.children) == 3) {
+                struct ASTNode* else_body = dynarray_get(&node.children, 2);
+                codegen_node(*else_body, fp);
+            }
+
+            fprintf(fp, "if.end.%u:\n", cur_label);
             break;
         }
 

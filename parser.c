@@ -128,6 +128,7 @@ static bool peek(struct TokenIterator* iter, enum TokenType kind) {
 static struct ASTNode expr(struct TokenIterator* iter, struct Context ctx);
 
 const char* reserved_identifiers[] = {
+        "else",
         "if",
         "int",
         "return",
@@ -291,7 +292,7 @@ static struct ASTNode expr_statement(struct TokenIterator* iter, struct Context 
 static struct ASTNode compound_statement(struct TokenIterator* iter, struct Context ctx);
 
 // statement = 'return' expr ';'
-//           | 'if' '(' expr ')' statement
+//           | 'if' '(' expr ')' statement ( 'else' statement )?
 //           | 'while' '(' expr ')' statement
 //           | 'int' ident ( '=' assign_expr )? ';'
 //           | compound_statement
@@ -313,6 +314,11 @@ static struct ASTNode statement(struct TokenIterator* iter, struct Context ctx)
         struct ASTNode body = statement(iter, ctx);
         dynarray_push(&node.children, &cond);
         dynarray_push(&node.children, &body);
+
+        if (consume_keyword(iter, "else")) {
+            struct ASTNode else_body = statement(iter, ctx);
+            dynarray_push(&node.children, &else_body);
+        }
     } else if (consume_keyword(iter, "while")) {
         ASTNode_init(&node, NODE_WHILE);
         expect(iter, TOK_LEFT_PAREN);
