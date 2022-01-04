@@ -24,6 +24,10 @@ void print_token(struct Token tok)
             printf("+ ");
             break;
 
+        case TOK_ASSIGN_ADD:
+            printf("+= ");
+            break;
+
         case TOK_COMMA:
             printf(", ");
             break;
@@ -57,7 +61,7 @@ void print_token(struct Token tok)
             break;
 
         case TOK_IDENT:
-            printf("%s", tok.ident);
+            printf("%s ", tok.ident);
             break;
 
         case TOK_ASSIGN:
@@ -65,15 +69,15 @@ void print_token(struct Token tok)
             break;
 
         case TOK_LEFT_CURLY_BRACKET:
-            printf("{");
+            printf("{ ");
             break;
 
         case TOK_RIGHT_CURLY_BRACKET:
-            printf("}");
+            printf("} ");
             break;
 
         case TOK_LESS_THAN:
-            printf("<");
+            printf("< ");
             break;
     }
 }
@@ -163,6 +167,7 @@ void tokenize(struct dynarray* tokens, const char* input)
 {
     CharIterator iter(input, strlen(input));
 
+    // TODO: factor this a bit
     while (iter.has_next()) {
         char c = iter.peek();
         if (isspace(c)) {
@@ -175,7 +180,11 @@ void tokenize(struct dynarray* tokens, const char* input)
             dynarray_push(tokens, &tok);
         } else if (iter.consume('+')) {
             Token tok;
-            tok.kind = TOK_ADD;
+            if (iter.consume('=')) {
+                tok.kind = TOK_ASSIGN_ADD;
+            } else {
+                tok.kind = TOK_ADD;
+            }
             dynarray_push(tokens, &tok);
         } else if (iter.consume('-')) {
             Token tok;
@@ -203,8 +212,7 @@ void tokenize(struct dynarray* tokens, const char* input)
             dynarray_push(tokens, &tok);
         } else if (iter.consume('=')) {
             Token tok;
-            if (iter.peek() == '=') {
-                iter.next();
+            if (iter.consume('=')) {
                 tok.kind = TOK_EQUALS;
             } else {
                 tok.kind = TOK_ASSIGN;

@@ -6,6 +6,7 @@
 enum TokenType {
     TOK_ADD,
     TOK_ASSIGN,
+    TOK_ASSIGN_ADD,
     TOK_COMMA,
     TOK_DIV,
     TOK_EQUALS,
@@ -32,6 +33,7 @@ struct Token {
 enum NodeKind {
     NODE_ADD,
     NODE_ASSIGN,
+    NODE_ASSIGN_ADD,
     NODE_BLOCK,
     NODE_DECL,
     NODE_DIV,

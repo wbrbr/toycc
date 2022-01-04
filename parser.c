@@ -252,23 +252,35 @@ static bool is_lvalue(struct ASTNode node)
     return node.kind == NODE_IDENT || node.decl.kind == DECL_VARIABLE;
 }
 
-// assign = equality_expr ( '=' equality_expr )
+static void check_lvalue(struct ASTNode node)
+{
+    if (!is_lvalue(node)) {
+        fprintf(stderr, "Expected lvalue");
+        exit(1);
+    }
+}
+
+// assign = equality_expr ( ('=' | '+=') equality_expr )
 static struct ASTNode assign_expr(struct TokenIterator* iter, struct Context ctx)
 {
     struct ASTNode lhs = equality_expr(iter, ctx);
-    if (consume(iter, TOK_ASSIGN)) {
-        if (!is_lvalue(lhs)) {
-            fprintf(stderr, "Expected lvalue");
-            exit(1);
-        }
-        struct ASTNode rhs = assign_expr(iter, ctx);
-        struct ASTNode node;
 
-        ASTNode_init_binary(&node, NODE_ASSIGN, lhs, rhs);
-        return node;
+    enum NodeKind kind;
+
+    if (consume(iter, TOK_ASSIGN)) {
+        kind = NODE_ASSIGN;
+    } else if (consume(iter, TOK_ASSIGN_ADD)) {
+        kind = NODE_ASSIGN_ADD;
     } else {
         return lhs;
     }
+
+    check_lvalue(lhs);
+    struct ASTNode rhs = assign_expr(iter, ctx);
+    struct ASTNode node;
+
+    ASTNode_init_binary(&node, kind, lhs, rhs);
+    return node;
 }
 
 // expr = assign_expr

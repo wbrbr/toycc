@@ -84,6 +84,22 @@ void codegen_node(struct ASTNode node, FILE* fp)
             break;
         }
 
+        case NODE_ASSIGN_ADD:
+        {
+            struct ASTNode* lhs = dynarray_get(&node.children, 0);
+            struct ASTNode* rhs = dynarray_get(&node.children, 1);
+
+            codegen_node(*rhs, fp);
+            codegen_addr(*lhs, fp);
+
+            // the addition operand is at the top of the stack
+            // and the address of the lvalue is in rax
+            fprintf(fp, "pop rbx\n"
+                        "add [rax],rbx\n"
+                        "push qword [rax]\n");
+            break;
+        }
+
         case NODE_BLOCK:
             codegen_children(&node.children, fp);
             break;
