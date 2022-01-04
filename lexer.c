@@ -62,7 +62,7 @@ static struct Token match_num(struct CharIterator* iter) {
 
     struct Token tok;
     tok.kind = TOK_INT;
-    tok.i64 = num;
+    tok.data.i64 = num;
     return tok;
 }
 
@@ -81,7 +81,7 @@ static struct Token match_ident(struct CharIterator* iter)
 
     struct Token tok;
     tok.kind = TOK_IDENT;
-    tok.ident = (char*)string.data;
+    tok.data.ident = (char*)string.data;
 
     return tok;
 }

@@ -1,4 +1,4 @@
-CFLAGS = -Wall -Wextra -g -fsanitize=undefined
+CFLAGS = -std=c99 -pedantic -Wall -Wextra -g -fsanitize=undefined
 
 all: codegen.o dynarray.o hashmap.o lexer.o main.o parser.o util.o xxhash.o
 	c++ $^ -o toycc $(CFLAGS)

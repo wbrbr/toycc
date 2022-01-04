@@ -87,7 +87,7 @@ static struct Token* consume_tok(struct TokenIterator* iter, enum TokenType kind
 
 static bool consume_keyword(struct TokenIterator* iter, const char* kw)
 {
-    if (iter->index < iter->size && iter->tokens[iter->index].kind == TOK_IDENT && strcmp(iter->tokens[iter->index].ident, kw) == 0) {
+    if (iter->index < iter->size && iter->tokens[iter->index].kind == TOK_IDENT && strcmp(iter->tokens[iter->index].data.ident, kw) == 0) {
         iter->index++;
         return true;
     }
@@ -109,7 +109,7 @@ static void expect(struct TokenIterator* iter, enum TokenType kind)
 static int64_t expect_int(struct TokenIterator* iter)
 {
     if (iter->index < iter->size && iter->tokens[iter->index].kind == TOK_INT) {
-        int64_t val = iter->tokens[iter->index].i64;
+        int64_t val = iter->tokens[iter->index].data.i64;
         iter->index++;
         return val;
     }
@@ -127,7 +127,7 @@ static bool peek(struct TokenIterator* iter, enum TokenType kind) {
 }
 
 static bool peek_keyword(struct TokenIterator* iter, const char* kw) {
-    if (iter->index < iter->size && iter->tokens[iter->index].kind == TOK_IDENT && strcmp(iter->tokens[iter->index].ident, kw) == 0) {
+    if (iter->index < iter->size && iter->tokens[iter->index].kind == TOK_IDENT && strcmp(iter->tokens[iter->index].data.ident, kw) == 0) {
         return true;
     }
 
@@ -158,7 +158,7 @@ static bool is_reserved(char* ident)
 
 static bool is_lvalue(struct ASTNode node)
 {
-    return node.kind == NODE_IDENT && node.decl.kind == DECL_VARIABLE;
+    return node.kind == NODE_IDENT && node.data.decl.kind == DECL_VARIABLE;
 }
 
 static void check_lvalue(struct ASTNode node)
@@ -171,7 +171,7 @@ static void check_lvalue(struct ASTNode node)
 
 static void check_modifiable_lvalue(struct ASTNode node)
 {
-    return check_lvalue(node);
+    check_lvalue(node);
 }
 
 // primary = '(' expr ')' | ident | int
@@ -184,18 +184,18 @@ static struct ASTNode primary(struct TokenIterator* iter, struct Context ctx)
         node = expr(iter, ctx);
         expect(iter,TOK_RIGHT_PAREN);
     } else if ((tok = consume_tok(iter, TOK_IDENT))) {
-        if (is_reserved(tok->ident)) {
+        if (is_reserved(tok->data.ident)) {
             fprintf(stderr, "Unexpected reserved identifier\n");
             exit(1);
         } else {
             ASTNode_init(&node, NODE_IDENT);
-            if (!Scope_find(ctx.scope, tok->ident, &node.decl)) {
-                fprintf(stderr, "Unknown identifier: %s\n", tok->ident);
+            if (!Scope_find(ctx.scope, tok->data.ident, &node.data.decl)) {
+                fprintf(stderr, "Unknown identifier: %s\n", tok->data.ident);
                 exit(1);
             }
         }
     } else {
-        node.i64 = expect_int(iter);
+        node.data.i64 = expect_int(iter);
         dynarray_init(&node.children, sizeof(struct ASTNode));
         node.kind = NODE_INT;
     }
@@ -387,7 +387,7 @@ static struct ASTNode statement(struct TokenIterator* iter, struct Context ctx)
         struct ASTNode init;
         if (consume(iter, TOK_SEMICOLON)) {
             ASTNode_init(&init, NODE_INT);
-            init.i64 = 0;
+            init.data.i64 = 0;
         } else if (peek_keyword(iter, "int")) {
             init = statement(iter, ctx);
             ASSERT(init.kind == NODE_DECL);
@@ -400,7 +400,7 @@ static struct ASTNode statement(struct TokenIterator* iter, struct Context ctx)
         struct ASTNode cond;
         if (consume(iter, TOK_SEMICOLON)) {
             ASTNode_init(&cond, NODE_INT);
-            cond.i64 = 1;
+            cond.data.i64 = 1;
         } else {
             cond = expr(iter, ctx);
             expect(iter, TOK_SEMICOLON);
@@ -410,7 +410,7 @@ static struct ASTNode statement(struct TokenIterator* iter, struct Context ctx)
         struct ASTNode increment;
         if (consume(iter, TOK_RIGHT_PAREN)) {
             ASTNode_init(&increment, NODE_INT);
-            increment.i64 = 0;
+            increment.data.i64 = 0;
         } else {
             increment = expr(iter, ctx);
             expect(iter, TOK_RIGHT_PAREN);
@@ -435,11 +435,11 @@ static struct ASTNode statement(struct TokenIterator* iter, struct Context ctx)
         }
 
         expect(iter, TOK_SEMICOLON);
-        node.decl.ident = ident->ident;
-        node.decl.kind = DECL_VARIABLE;
-        node.decl.var_decl.stack_loc = *ctx.frame_size;
+        node.data.decl.ident = ident->data.ident;
+        node.data.decl.kind = DECL_VARIABLE;
+        node.data.decl.data.var.stack_loc = *ctx.frame_size;
         *ctx.frame_size += 8;
-        Scope_append(ctx.scope, &node.decl);
+        Scope_append(ctx.scope, &node.data.decl);
     } else if (peek(iter, TOK_LEFT_CURLY_BRACKET)) {
         node = compound_statement(iter, ctx);
     } else {
@@ -477,9 +477,9 @@ static struct ASTNode function_definition(struct TokenIterator* iter, struct Sco
         struct Token* tok = consume_tok(iter, TOK_IDENT);
 
         struct Declaration decl;
-        decl.ident = tok->ident;
+        decl.ident = tok->data.ident;
         decl.kind = DECL_FUNCTION;
-        decl.fun_decl.frame_size = 0;
+        decl.data.fun.frame_size = 0;
 
         expect(iter, TOK_LEFT_PAREN);
 
@@ -496,10 +496,10 @@ static struct ASTNode function_definition(struct TokenIterator* iter, struct Sco
 
             struct Declaration param_decl;
             param_decl.kind = DECL_VARIABLE;
-            param_decl.ident = param->ident;
+            param_decl.ident = param->data.ident;
 
-            param_decl.var_decl.stack_loc = decl.fun_decl.frame_size;
-            decl.fun_decl.frame_size += 8;
+            param_decl.data.var.stack_loc = decl.data.fun.frame_size;
+            decl.data.fun.frame_size += 8;
 
             Scope_append(&fun_scope, &param_decl);
 
@@ -508,7 +508,7 @@ static struct ASTNode function_definition(struct TokenIterator* iter, struct Sco
 
         struct Context ctx;
         ctx.scope = &fun_scope;
-        ctx.frame_size = &decl.fun_decl.frame_size;
+        ctx.frame_size = &decl.data.fun.frame_size;
 
         // we have to declare the function before parsing the body even though we don't know the frame size yet
         // otherwise we can't handle recursion
@@ -517,11 +517,11 @@ static struct ASTNode function_definition(struct TokenIterator* iter, struct Sco
         struct ASTNode body = compound_statement(iter, ctx);
 
         // overwrite the declaration with the correct frame size
-        hashmap_set(&scope->decls, tok->ident, &decl);
+        hashmap_set(&scope->decls, tok->data.ident, &decl);
 
         struct ASTNode node;
         ASTNode_init(&node, NODE_FUNCTION_DEF);
-        node.decl = decl;
+        node.data.decl = decl;
         dynarray_push(&node.children, &body);
 
         return node;
@@ -535,7 +535,7 @@ static struct ASTNode function_definition(struct TokenIterator* iter, struct Sco
 struct ASTNode parse(struct dynarray tokens)
 {
     struct TokenIterator iter;
-    TokenIterator_init(&iter, tokens.data, dynarray_length(&tokens));
+    TokenIterator_init(&iter, (struct Token*)tokens.data, dynarray_length(&tokens));
     struct ASTNode program;
     program.kind = NODE_PROGRAM;
     dynarray_init(&program.children, sizeof(struct ASTNode));

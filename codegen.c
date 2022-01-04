@@ -22,7 +22,7 @@ void codegen_addr(struct ASTNode node, FILE* fp)
 {
     switch(node.kind) {
         case NODE_IDENT:
-            load_stack_loc_rax(node.decl.var_decl.stack_loc, fp);
+            load_stack_loc_rax(node.data.decl.data.var.stack_loc, fp);
             break;
 
         default:
@@ -104,7 +104,7 @@ void codegen_node(struct ASTNode node, FILE* fp)
             // now the value is on top of the stack
 
             // we need to put the address of the lvalue in rax
-            load_stack_loc_rax(node.decl.var_decl.stack_loc, fp);
+            load_stack_loc_rax(node.data.decl.data.var.stack_loc, fp);
 
             codegen_assign(fp);
             break;
@@ -161,7 +161,7 @@ void codegen_node(struct ASTNode node, FILE* fp)
             fprintf(fp, "%s:\n"
                         "push rbp\n"
                         "mov rbp, rsp\n"
-                        "sub rsp, %u\n", node.decl.ident, node.decl.fun_decl.frame_size);
+                        "sub rsp, %u\n", node.data.decl.ident, node.data.decl.data.fun.frame_size);
             codegen_children(&node.children, fp);
             fprintf(fp, "mov rsp, rbp\n"
                         "pop rbp\n"
@@ -198,12 +198,12 @@ void codegen_node(struct ASTNode node, FILE* fp)
 
         case NODE_IDENT:
             codegen_children(&node.children, fp);
-            fprintf(fp, "push qword [rbp-%lu]\n", node.decl.var_decl.stack_loc);
+            fprintf(fp, "push qword [rbp-%lu]\n", node.data.decl.data.var.stack_loc);
             break;
 
         case NODE_INT:
             codegen_children(&node.children, fp);
-            fprintf(fp, "push %ld\n", node.i64);
+            fprintf(fp, "push %ld\n", node.data.i64);
             break;
 
         case NODE_LESS_THAN:

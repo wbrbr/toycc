@@ -4,7 +4,7 @@
 #include <stdint.h>
 
 struct dynarray {
-    void* data;
+    unsigned char* data;
     size_t capacity; // in number of elements
     size_t length;
 

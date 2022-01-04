@@ -28,7 +28,7 @@ struct Token {
     union {
         int64_t i64;
         char* ident;
-    };
+    } data;
 };
 
 enum NodeKind {
@@ -73,9 +73,9 @@ struct Declaration {
     const char* ident;
     enum DeclKind kind;
     union {
-        struct VariableDeclaration var_decl;
-        struct FunctionDeclaration fun_decl;
-    };
+        struct VariableDeclaration var;
+        struct FunctionDeclaration fun;
+    } data;
 };
 
 struct Scope {
@@ -90,7 +90,7 @@ struct ASTNode {
     union {
         int64_t i64;
         struct Declaration decl;
-    };
+    } data;
 };
 
 void tokenize(struct dynarray* tokens, const char* input);

@@ -36,7 +36,7 @@ void print_token(struct Token tok)
             break;
 
         case TOK_IDENT:
-            printf("%s ", tok.ident);
+            printf("%s ", tok.data.ident);
             break;
 
         case TOK_INCREMENT:
@@ -44,7 +44,7 @@ void print_token(struct Token tok)
             break;
 
         case TOK_INT:
-            printf("%ld ", tok.i64);
+            printf("%ld ", tok.data.i64);
             break;
 
         case TOK_LEFT_CURLY_BRACKET:
@@ -103,7 +103,7 @@ int ast_to_dot_file_rec(FILE* fp, const struct ASTNode* node, int node_id, int p
             break;
 
         case NODE_DECL:
-            fprintf(fp, "int %s", node->decl.ident);
+            fprintf(fp, "int %s", node->data.decl.ident);
             break;
 
         case NODE_DIV:
@@ -123,11 +123,11 @@ int ast_to_dot_file_rec(FILE* fp, const struct ASTNode* node, int node_id, int p
             break;
 
         case NODE_FUNCTION_DEF:
-            fprintf(fp, "fun %s", node->decl.ident);
+            fprintf(fp, "fun %s", node->data.decl.ident);
             break;
 
         case NODE_IDENT:
-            fprintf(fp, "%s", node->decl.ident);
+            fprintf(fp, "%s", node->data.decl.ident);
             break;
 
         case NODE_IF:
@@ -135,7 +135,7 @@ int ast_to_dot_file_rec(FILE* fp, const struct ASTNode* node, int node_id, int p
             break;
 
         case NODE_INT:
-            fprintf(fp, "%ld", node->i64);
+            fprintf(fp, "%ld", node->data.i64);
             break;
 
         case NODE_LESS_THAN:
