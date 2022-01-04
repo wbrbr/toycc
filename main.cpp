@@ -338,16 +338,6 @@ void print_int(void* ptr)
 
 int main(int argc, char** argv)
 {
-    int f = 4;
-    struct dynarray test;
-    dynarray_init(&test, sizeof(int));
-    dynarray_push(&test, &f);
-    f = -5;
-    dynarray_push(&test, &f);
-    dynarray_map(&test, print_int);
-
-    dynarray_destroy(&test);
-
     if (argc != 2) {
         fprintf(stderr, "Usage: %s <file>\n", argv[0]);
         exit(1);
